@@ -406,7 +406,8 @@ AgentML is built on:
 ---
 
 ##  Author
-Quan Do, Thuy Nguyen, Huan Tran
+Quan Do, Thuy Nguyen, Huan Tran.
+
 ---
 
 ## Final Note
