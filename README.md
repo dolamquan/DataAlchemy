@@ -1,11 +1,11 @@
-# DataAlchemy 🚀
+# DataAlchemy 
 
 A **config-driven, multi-agent orchestration backend** for portfolio-level AI/ML systems.
 This project enables dynamic, LLM-powered agents to collaborate across data pipelines, model training, evaluation, and reporting — all orchestrated through a declarative YAML configuration.
 
 ---
 
-## 🧠 Overview
+##  Overview
 
 AgentML Backend is designed to power **portfolio-level AI systems**, where multiple projects run simultaneously and are coordinated by intelligent agents.
 
@@ -19,7 +19,7 @@ Instead of hardcoding workflows, this system:
 
 ---
 
-## 🏗️ Project Structure
+##  Project Structure
 
 ```
 agentml-backend/
@@ -42,7 +42,7 @@ agentml-backend/
 
 ---
 
-## ⚙️ Core Concepts
+##  Core Concepts
 
 ### 1. Config-Driven Agents
 
@@ -112,7 +112,6 @@ app/engine/llm_client.py
 * Returns structured `AgentResult`
 * Drives dynamic decision-making
 
-⚠️ Currently stubbed — replace with real OpenAI / Anthropic calls.
 
 ---
 
@@ -214,7 +213,7 @@ app/services/report_service.py
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### 1. Clone the repo
 
@@ -297,7 +296,7 @@ ws://localhost:8000/ws/portfolio/{portfolio_id}
 
 ---
 
-## 🔄 Execution Flow
+##  Execution Flow
 
 1. Request hits API
 2. Planner builds payload
@@ -326,7 +325,7 @@ ws://localhost:8000/ws/portfolio/{portfolio_id}
 
 ---
 
-## 🧪 Development Notes
+##  Development Notes
 
 ### Replace LLM Stub
 
@@ -371,7 +370,7 @@ Future improvements:
 
 ---
 
-## 📊 Frontend Integration
+##  Frontend Integration
 
 The backend is designed for:
 
@@ -383,7 +382,7 @@ The backend is designed for:
 
 ---
 
-## 🔐 Future Enhancements
+##  Future Enhancements
 
 * Auth & RBAC
 * Multi-tenant portfolios
@@ -394,7 +393,7 @@ The backend is designed for:
 
 ---
 
-## 💡 Philosophy
+##  Philosophy
 
 AgentML is built on:
 
@@ -406,12 +405,13 @@ AgentML is built on:
 
 ---
 
-## 👨‍💻 Author
+##  Author
 
 Built for advanced AI system design and portfolio orchestration.
 
+Quan Do, Thuy Nguyen, Huan Tran
 ---
 
-## ⭐ Final Note
+## Final Note
 
 This is not just a backend — it's a **framework for building autonomous AI systems at scale**.
