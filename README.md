@@ -1,4 +1,4 @@
-# AgentML Backend 🚀
+# DataAlchemy 🚀
 
 A **config-driven, multi-agent orchestration backend** for portfolio-level AI/ML systems.
 This project enables dynamic, LLM-powered agents to collaborate across data pipelines, model training, evaluation, and reporting — all orchestrated through a declarative YAML configuration.
