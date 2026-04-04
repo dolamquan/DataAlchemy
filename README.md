@@ -308,7 +308,7 @@ ws://localhost:8000/ws/portfolio/{portfolio_id}
 
 ---
 
-## 🧩 Agent System
+##  Agent System
 
 ### Default Agents
 
@@ -406,9 +406,6 @@ AgentML is built on:
 ---
 
 ##  Author
-
-Built for advanced AI system design and portfolio orchestration.
-
 Quan Do, Thuy Nguyen, Huan Tran
 ---
 
