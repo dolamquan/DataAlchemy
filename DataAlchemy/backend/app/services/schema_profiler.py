@@ -1,5 +1,7 @@
 import csv
 from collections import Counter
+from math import isfinite
+from statistics import median
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +33,61 @@ def is_float_like(value: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def try_parse_float(value: str) -> float | None:
+    try:
+        parsed = float(value)
+    except Exception:
+        return None
+    if not isfinite(parsed):
+        return None
+    return parsed
+
+
+def build_numeric_distribution(values: list[float], bin_count: int = 10) -> list[dict[str, Any]]:
+    if not values:
+        return []
+
+    min_value = min(values)
+    max_value = max(values)
+
+    if min_value == max_value:
+        return [{"label": f"{round(min_value, 4)}", "count": len(values)}]
+
+    safe_bins = max(3, min(bin_count, 20))
+    step = (max_value - min_value) / safe_bins
+    bins: list[dict[str, Any]] = []
+
+    for i in range(safe_bins):
+        start = min_value + (i * step)
+        end = min_value + ((i + 1) * step)
+
+        if i == safe_bins - 1:
+            count = sum(1 for v in values if start <= v <= end)
+        else:
+            count = sum(1 for v in values if start <= v < end)
+
+        bins.append(
+            {
+                "label": f"{round(start, 2)}-{round(end, 2)}",
+                "start": round(start, 6),
+                "end": round(end, 6),
+                "count": count,
+            }
+        )
+
+    return bins
+
+
+def infer_profile_column_family(inferred_dtype: str) -> str:
+    if inferred_dtype in {"integer", "float"}:
+        return "numeric"
+    if inferred_dtype == "boolean":
+        return "boolean"
+    if inferred_dtype in {"categorical", "string"}:
+        return "categorical"
+    return "other"
 
 
 def infer_column_type(values: list[str]) -> str:
@@ -144,9 +201,33 @@ def profile_csv(path: str, sample_rows: int = 500, preview_rows_count: int = 5) 
         columns = []
         for column in fieldnames:
             values = column_values[column]
+            non_null_values = [v for v in values if not is_null_like(v)]
             null_count = sum(1 for v in values if is_null_like(v))
             non_null_count = len(values) - null_count
             inferred_dtype = infer_column_type(values)
+            column_family = infer_profile_column_family(inferred_dtype)
+
+            numeric_values = [v for v in (try_parse_float(item) for item in non_null_values) if v is not None]
+            numeric_stats: dict[str, Any] | None = None
+            numeric_distribution: list[dict[str, Any]] = []
+
+            if column_family == "numeric" and numeric_values:
+                numeric_values_sorted = sorted(numeric_values)
+                numeric_stats = {
+                    "min": round(min(numeric_values_sorted), 6),
+                    "max": round(max(numeric_values_sorted), 6),
+                    "mean": round(sum(numeric_values_sorted) / len(numeric_values_sorted), 6),
+                    "median": round(float(median(numeric_values_sorted)), 6),
+                }
+                numeric_distribution = build_numeric_distribution(numeric_values_sorted)
+
+            categorical_top_values: list[dict[str, Any]] = []
+            if column_family == "categorical" and non_null_values:
+                freq = Counter(non_null_values)
+                categorical_top_values = [
+                    {"value": key, "count": count}
+                    for key, count in freq.most_common(10)
+                ]
 
             # keep up to 5 sample values, excluding null-like values where possible
             non_null_examples = []
@@ -167,11 +248,15 @@ def profile_csv(path: str, sample_rows: int = 500, preview_rows_count: int = 5) 
                 {
                     "name": column,
                     "inferred_dtype": inferred_dtype,
+                    "column_family": column_family,
                     "non_null_count": non_null_count,
                     "null_count": null_count,
                     "null_ratio": round((null_count / len(values)), 4) if values else 0.0,
                     "unique_count": len(unique_trackers[column]),
                     "sample_values": non_null_examples,
+                    "numeric_stats": numeric_stats,
+                    "numeric_distribution": numeric_distribution,
+                    "categorical_top_values": categorical_top_values,
                 }
             )
 
@@ -188,3 +273,77 @@ def profile_csv(path: str, sample_rows: int = 500, preview_rows_count: int = 5) 
                 f"Rows sampled: {sampled_count}",
             ],
         }
+
+
+def build_schema_insights(schema_profile: dict[str, Any], top_n: int = 8) -> dict[str, Any]:
+    columns = schema_profile.get("columns") or []
+
+    numeric_columns = [
+        c for c in columns
+        if (c.get("column_family") == "numeric" or c.get("inferred_dtype") in {"integer", "float"})
+    ]
+    categorical_columns = [
+        c for c in columns
+        if (c.get("column_family") == "categorical" or c.get("inferred_dtype") in {"categorical", "string"})
+    ]
+    boolean_columns = [c for c in columns if c.get("inferred_dtype") == "boolean"]
+
+    columns_with_missing_values = [
+        {
+            "name": c.get("name"),
+            "null_count": int(c.get("null_count") or 0),
+            "null_ratio": float(c.get("null_ratio") or 0.0),
+        }
+        for c in columns
+        if (c.get("null_count") or 0) > 0
+    ]
+    columns_with_missing_values.sort(key=lambda item: (item["null_count"], item["null_ratio"]), reverse=True)
+
+    columns_by_unique_count = [
+        {
+            "name": c.get("name"),
+            "unique_count": int(c.get("unique_count") or 0),
+        }
+        for c in columns
+    ]
+    columns_by_unique_count.sort(key=lambda item: item["unique_count"], reverse=True)
+
+    numeric_distributions = [
+        {
+            "column": c.get("name"),
+            "stats": c.get("numeric_stats") or {},
+            "bins": c.get("numeric_distribution") or [],
+        }
+        for c in numeric_columns
+        if c.get("name")
+    ]
+
+    categorical_frequencies = [
+        {
+            "column": c.get("name"),
+            "values": c.get("categorical_top_values") or [],
+        }
+        for c in categorical_columns
+        if c.get("name")
+    ]
+
+    return {
+        "summary": {
+            "total_columns": int(schema_profile.get("total_columns") or len(columns)),
+            "rows_sampled": int(schema_profile.get("rows_sampled") or 0),
+            "numeric_columns": len(numeric_columns),
+            "categorical_columns": len(categorical_columns),
+            "boolean_columns": len(boolean_columns),
+            "columns_with_missing_values": len(columns_with_missing_values),
+        },
+        "column_type_counts": {
+            "numeric": len(numeric_columns),
+            "categorical": len(categorical_columns),
+            "boolean": len(boolean_columns),
+            "other": max(0, len(columns) - (len(numeric_columns) + len(categorical_columns) + len(boolean_columns))),
+        },
+        "columns_by_null_ratio": columns_with_missing_values[:top_n],
+        "columns_by_unique_count": columns_by_unique_count[:top_n],
+        "numeric_distributions": numeric_distributions,
+        "categorical_frequencies": categorical_frequencies,
+    }

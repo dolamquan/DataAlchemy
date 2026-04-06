@@ -1,18 +1,17 @@
 // TypeScript
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/progress";
-import { Badge } from "../components/ui/badge";
 
-interface UploadedFile {
-  name: string;
-  size: string;
-  uploadedAt: string;
-  status: "success" | "processing" | "failed";
-  rows?: number;
-  columns?: number;
+const API_BASE_URL = "http://127.0.0.1:8000";
+
+interface RecentUploadItem {
+  file_id: string;
+  original_filename: string;
+  file_size_bytes: number;
+  created_at: string;
 }
 
 interface ColumnProfile {
@@ -39,32 +38,9 @@ interface SchemaProfile {
 export function UploadDatasetPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [recentUploads] = useState<UploadedFile[]>([
-    {
-      name: "customer_churn.csv",
-      size: "12.4 MB",
-      uploadedAt: "Apr 5, 2026 10:32 AM",
-      status: "success",
-      rows: 50000,
-      columns: 24,
-    },
-    {
-      name: "sales_data_q1.csv",
-      size: "8.7 MB",
-      uploadedAt: "Apr 4, 2026 3:15 PM",
-      status: "success",
-      rows: 35000,
-      columns: 18,
-    },
-    {
-      name: "product_inventory.csv",
-      size: "2.1 MB",
-      uploadedAt: "Apr 3, 2026 9:45 AM",
-      status: "success",
-      rows: 12000,
-      columns: 15,
-    },
-  ]);
+  const [recentUploads, setRecentUploads] = useState<RecentUploadItem[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentError, setRecentError] = useState<string | null>(null);
 
   // Upload state
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -75,6 +51,28 @@ export function UploadDatasetPage() {
   // Schema profile state
   const [schemaProfile, setSchemaProfile] = useState<SchemaProfile | null>(null);
   const [fileId, setFileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadRecentUploads();
+  }, []);
+
+  async function loadRecentUploads() {
+    setRecentLoading(true);
+    setRecentError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/uploads/recent?limit=10`);
+      if (!res.ok) {
+        throw new Error(`Failed to load recent uploads (${res.status})`);
+      }
+      const data = await res.json();
+      setRecentUploads(Array.isArray(data?.items) ? data.items : []);
+    } catch (err: any) {
+      console.error("Failed to load recent uploads", err);
+      setRecentError(err?.message ?? "Unable to load recent uploads");
+    } finally {
+      setRecentLoading(false);
+    }
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -115,7 +113,7 @@ export function UploadDatasetPage() {
       fd.append("file", file);
 
       // send to backend
-      const res = await fetch("http://127.0.0.1:8000/api/upload", {
+      const res = await fetch(`${API_BASE_URL}/api/upload`, {
         method: "POST",
         body: fd,
       });
@@ -139,11 +137,31 @@ export function UploadDatasetPage() {
 
       // progress complete
       setUploadProgress(100);
+      await loadRecentUploads();
       setTimeout(() => setUploadProgress(null), 800);
     } catch (err: any) {
       console.error("Upload error", err);
       setError(err?.message ?? "Upload failed");
       setUploadProgress(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadSchemaFromRecentUpload(recentFileId: string) {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/uploads/${encodeURIComponent(recentFileId)}/schema`);
+      if (!res.ok) {
+        throw new Error(`Failed to load schema (${res.status})`);
+      }
+      const data = await res.json();
+      setSchemaProfile(data?.schema_profile ?? null);
+      setFileId(data?.file_id ?? recentFileId);
+    } catch (err: any) {
+      console.error("Failed to load schema profile", err);
+      setError(err?.message ?? "Failed to load schema profile");
     } finally {
       setLoading(false);
     }
@@ -158,6 +176,12 @@ export function UploadDatasetPage() {
     const sizes = ["B", "KB", "MB", "GB", "TB"];
     const i = Math.floor(Math.log(b) / Math.log(k));
     return parseFloat((b / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  }
+
+  function formatUploadedAt(isoDate: string) {
+    const date = new Date(isoDate);
+    if (Number.isNaN(date.getTime())) return "Unknown date";
+    return date.toLocaleString();
   }
 
   // render preview rows table
@@ -306,52 +330,14 @@ export function UploadDatasetPage() {
               </div>
             </div>
 
-            {/* Columns table */}
-            <div className="mb-4">
-              <div className="text-sm font-medium mb-2">Column Summary</div>
-              {schemaProfile.columns && schemaProfile.columns.length > 0 ? (
-                <div className="overflow-auto border border-border rounded">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Name</th>
-                        <th className="px-3 py-2 text-left">Inferred Type</th>
-                        <th className="px-3 py-2 text-left">Null Count</th>
-                        <th className="px-3 py-2 text-left">Unique Count</th>
-                        <th className="px-3 py-2 text-left">Sample Values</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {schemaProfile.columns.map((col, idx) => (
-                        <tr key={col.name + idx} className="odd:bg-muted/10">
-                          <td className="px-3 py-2 align-top text-foreground">{col.name}</td>
-                          <td className="px-3 py-2 align-top text-muted-foreground">{col.inferred_dtype}</td>
-                          <td className="px-3 py-2 align-top text-muted-foreground">{col.null_count ?? "—"}</td>
-                          <td className="px-3 py-2 align-top text-muted-foreground">{col.unique_count ?? "—"}</td>
-                          <td className="px-3 py-2 align-top text-muted-foreground">
-                            {(col.sample_values && col.sample_values.length > 0) ? (
-                              <div className="flex flex-wrap gap-2">
-                                {col.sample_values.slice(0, 6).map((v, i) => (
-                                  <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded">{String(v)}</span>
-                                ))}
-                                {col.sample_values.length > 6 && <span className="text-xs text-muted-foreground">…</span>}
-                              </div>
-                            ) : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground">No column information available.</div>
-              )}
-            </div>
-
             {/* Preview rows */}
             <div className="mb-4">
               <div className="text-sm font-medium mb-2">Preview Rows</div>
               {renderPreviewRows(schemaProfile.preview_rows)}
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Full schema details and charts are available on the Schema Profile page.
             </div>
 
             {/* Notes */}
@@ -378,9 +364,21 @@ export function UploadDatasetPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {recentUploads.map((file, index) => (
+              {recentLoading && (
+                <div className="text-sm text-muted-foreground">Loading recent uploads...</div>
+              )}
+
+              {!recentLoading && recentError && (
+                <div className="text-sm text-red-600">{recentError}</div>
+              )}
+
+              {!recentLoading && !recentError && recentUploads.length === 0 && (
+                <div className="text-sm text-muted-foreground">No uploads yet. Upload a CSV to get started.</div>
+              )}
+
+              {!recentLoading && !recentError && recentUploads.map((file) => (
                 <div
-                  key={index}
+                  key={file.file_id}
                   className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
                 >
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -388,17 +386,19 @@ export function UploadDatasetPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-foreground truncate">{file.name}</h4>
-                      {file.status === "success" && (
-                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      )}
+                      <h4 className="text-foreground truncate">{file.original_filename}</h4>
+                      <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {file.size} • {file.uploadedAt}
-                      {file.rows && ` • ${file.rows.toLocaleString()} rows, ${file.columns} columns`}
+                      {formatBytes(file.file_size_bytes)} • {formatUploadedAt(file.created_at)}
                     </p>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void loadSchemaFromRecentUpload(file.file_id)}
+                    disabled={loading}
+                  >
                     View
                   </Button>
                 </div>

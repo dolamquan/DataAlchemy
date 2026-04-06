@@ -18,7 +18,7 @@ import { Input } from "./ui/input";
 const navigation = [
   { name: "Upload Dataset", href: "/app/upload", icon: Upload, comingSoon: false },
   { name: "Schema Profile", href: "/app/schema", icon: FileText, comingSoon: false },
-  { name: "Projects", href: "/app/projects", icon: FolderKanban, comingSoon: true },
+  { name: "Projects", href: "/app/projects", icon: FolderKanban, comingSoon: false },
   { name: "Agents", href: "/app/agents", icon: Bot, comingSoon: true },
   { name: "Reports", href: "/app/reports", icon: BarChart3, comingSoon: true },
   { name: "Power BI Exports", href: "/app/powerbi", icon: FileSpreadsheet, comingSoon: true },

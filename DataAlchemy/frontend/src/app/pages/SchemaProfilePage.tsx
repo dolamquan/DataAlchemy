@@ -1,316 +1,522 @@
-import { CheckCircle2, AlertTriangle, Database, Columns3, Hash, Type, Calendar, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, BarChart3, CheckCircle2, Columns3, Database, Hash, RefreshCw, Type } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Badge } from "../components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import {
+  fetchRecentUploads,
+  fetchSchemaInsights,
+  fetchSchemaProfile,
+  type RecentUploadItem,
+  type SchemaInsights,
+  type SchemaProfile,
+} from "../lib/uploadsApi";
 
-interface SchemaColumn {
-  name: string;
-  type: string;
-  nullPercent: number;
-  example: string;
-  notes?: string;
+function formatBytes(bytes?: number) {
+  if (bytes === undefined || bytes === null) return "-";
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, idx)).toFixed(2)} ${units[idx]}`;
 }
 
-const schemaData: SchemaColumn[] = [
-  { name: "customer_id", type: "Integer", nullPercent: 0, example: "12345", notes: "Primary key" },
-  { name: "age", type: "Integer", nullPercent: 2.3, example: "34" },
-  { name: "gender", type: "String", nullPercent: 0.8, example: "Male" },
-  { name: "subscription_type", type: "String", nullPercent: 0, example: "Premium" },
-  { name: "monthly_charges", type: "Float", nullPercent: 1.2, example: "79.99" },
-  { name: "tenure_months", type: "Integer", nullPercent: 0, example: "24" },
-  { name: "total_charges", type: "Float", nullPercent: 3.5, example: "1919.76" },
-  { name: "churn", type: "Boolean", nullPercent: 0, example: "false", notes: "Target variable" },
-  { name: "contract_type", type: "String", nullPercent: 0, example: "Two year" },
-  { name: "payment_method", type: "String", nullPercent: 1.8, example: "Credit card" },
-  { name: "internet_service", type: "String", nullPercent: 0, example: "Fiber optic" },
-  { name: "phone_service", type: "Boolean", nullPercent: 0, example: "true" },
-];
+function formatDate(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return date.toLocaleString();
+}
 
-const sampleRows = [
-  {
-    customer_id: "12345",
-    age: "34",
-    gender: "Male",
-    subscription_type: "Premium",
-    monthly_charges: "79.99",
-    churn: "false",
-  },
-  {
-    customer_id: "12346",
-    age: "45",
-    gender: "Female",
-    subscription_type: "Basic",
-    monthly_charges: "45.50",
-    churn: "true",
-  },
-  {
-    customer_id: "12347",
-    age: "28",
-    gender: "Male",
-    subscription_type: "Premium",
-    monthly_charges: "85.00",
-    churn: "false",
-  },
-];
+function formatPercent(value: number) {
+  return `${(value * 100).toFixed(2)}%`;
+}
 
 export function SchemaProfilePage() {
+  const [uploads, setUploads] = useState<RecentUploadItem[]>([]);
+  const [uploadsLoading, setUploadsLoading] = useState(false);
+  const [uploadsError, setUploadsError] = useState<string | null>(null);
+
+  const [selectedFileId, setSelectedFileId] = useState<string>("");
+  const [schemaProfile, setSchemaProfile] = useState<SchemaProfile | null>(null);
+  const [insights, setInsights] = useState<SchemaInsights | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const [selectedNumericColumn, setSelectedNumericColumn] = useState<string>("");
+  const [selectedCategoricalColumn, setSelectedCategoricalColumn] = useState<string>("");
+
+  const selectedUpload = useMemo(
+    () => uploads.find((item) => item.file_id === selectedFileId) ?? null,
+    [uploads, selectedFileId],
+  );
+
+  const selectedNumericDistribution = useMemo(
+    () => insights?.numeric_distributions.find((item) => item.column === selectedNumericColumn) ?? null,
+    [insights, selectedNumericColumn],
+  );
+
+  const selectedCategoricalFrequency = useMemo(
+    () => insights?.categorical_frequencies.find((item) => item.column === selectedCategoricalColumn) ?? null,
+    [insights, selectedCategoricalColumn],
+  );
+
+  useEffect(() => {
+    void loadUploads();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedFileId) return;
+    void loadDetails(selectedFileId);
+  }, [selectedFileId]);
+
+  useEffect(() => {
+    const firstNumeric = insights?.numeric_distributions[0]?.column ?? "";
+    setSelectedNumericColumn((current) => current || firstNumeric);
+
+    const firstCategorical = insights?.categorical_frequencies[0]?.column ?? "";
+    setSelectedCategoricalColumn((current) => current || firstCategorical);
+  }, [insights]);
+
+  async function loadUploads() {
+    setUploadsLoading(true);
+    setUploadsError(null);
+
+    try {
+      const items = await fetchRecentUploads(50);
+      setUploads(items);
+
+      if (items.length > 0) {
+        setSelectedFileId((current) => current || items[0].file_id);
+      } else {
+        setSelectedFileId("");
+        setSchemaProfile(null);
+        setInsights(null);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load uploads.";
+      setUploadsError(message);
+    } finally {
+      setUploadsLoading(false);
+    }
+  }
+
+  async function loadDetails(fileId: string) {
+    setDetailLoading(true);
+    setDetailError(null);
+
+    try {
+      const [schemaPayload, insightsPayload] = await Promise.all([
+        fetchSchemaProfile(fileId),
+        fetchSchemaInsights(fileId),
+      ]);
+      setSchemaProfile(schemaPayload);
+      setInsights(insightsPayload);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load dataset details.";
+      setDetailError(message);
+      setSchemaProfile(null);
+      setInsights(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  const previewRows = schemaProfile?.preview_rows ?? [];
+  const previewColumns = previewRows.length > 0 ? Array.from(new Set(previewRows.flatMap((row) => Object.keys(row)))) : [];
+
+  const typeCountsData = insights
+    ? [
+        { label: "Numeric", count: insights.column_type_counts.numeric },
+        { label: "Categorical", count: insights.column_type_counts.categorical },
+        { label: "Boolean", count: insights.column_type_counts.boolean },
+      ]
+    : [];
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-foreground">Schema Profile</h1>
             <Badge variant="outline" className="gap-1.5">
               <CheckCircle2 className="w-3 h-3 text-green-500" />
-              Ready
+              Live Data
             </Badge>
           </div>
-          <p className="text-muted-foreground">customer_churn.csv</p>
-          <p className="text-sm text-muted-foreground">
-            Uploaded Apr 5, 2026 at 10:32 AM • 12.4 MB • ~50,000 rows
+          <p className="text-muted-foreground text-sm">
+            Select an uploaded CSV to inspect schema, preview rows, and generated insights.
           </p>
         </div>
-        <Button>Export Schema</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => void loadUploads()} disabled={uploadsLoading || detailLoading}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Total Columns</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Columns3 className="w-5 h-5 text-blue-500" />
-              </div>
-              <div>
-                <div className="text-3xl text-foreground">24</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Numeric Columns</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <Hash className="w-5 h-5 text-green-500" />
-              </div>
-              <div>
-                <div className="text-3xl text-foreground">11</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Categorical Columns</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Type className="w-5 h-5 text-purple-500" />
-              </div>
-              <div>
-                <div className="text-3xl text-foreground">9</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Missing Values</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-orange-500" />
-              </div>
-              <div>
-                <div className="text-3xl text-foreground">4</div>
-                <p className="text-xs text-muted-foreground">columns affected</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Schema Detail Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Schema Details</CardTitle>
-          <CardDescription>Column definitions, types, and quality indicators</CardDescription>
+          <CardTitle>Dataset Selection</CardTitle>
+          <CardDescription>Pick one uploaded dataset to load profile and insights.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Column Name</TableHead>
-                  <TableHead>Inferred Type</TableHead>
-                  <TableHead>Null %</TableHead>
-                  <TableHead>Example Value</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {schemaData.map((column, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <code className="text-sm text-foreground bg-muted px-2 py-0.5 rounded">
-                        {column.name}
-                      </code>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="font-mono text-xs">
-                        {column.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className={column.nullPercent > 3 ? "text-orange-500" : "text-muted-foreground"}>
-                          {column.nullPercent}%
-                        </span>
-                        {column.nullPercent > 3 && (
-                          <AlertTriangle className="w-3 h-3 text-orange-500" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {column.example}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {column.notes || "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 max-w-xl">
+            <label className="text-sm text-muted-foreground">Uploaded files</label>
+            <select
+              className="h-10 rounded-md border border-border bg-background px-3 text-sm"
+              disabled={uploadsLoading || uploads.length === 0}
+              value={selectedFileId}
+              onChange={(event) => setSelectedFileId(event.target.value)}
+            >
+              {uploads.length === 0 && <option value="">No uploaded files available</option>}
+              {uploads.map((item) => (
+                <option key={item.file_id} value={item.file_id}>
+                  {item.original_filename} ({formatBytes(item.file_size_bytes)})
+                </option>
+              ))}
+            </select>
           </div>
+
+          {uploadsLoading && <p className="text-sm text-muted-foreground">Loading uploaded files...</p>}
+          {uploadsError && <p className="text-sm text-red-600">{uploadsError}</p>}
+          {!uploadsLoading && uploads.length === 0 && !uploadsError && (
+            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              No datasets found yet. Upload a CSV from the Upload page to begin schema profiling.
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Sample Rows */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sample Rows</CardTitle>
-          <CardDescription>Preview of your dataset (first 3 rows)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {Object.keys(sampleRows[0]).map((key) => (
-                    <TableHead key={key}>
-                      <code className="text-xs">{key}</code>
-                    </TableHead>
+      {selectedUpload && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Selected File</CardDescription>
+              <CardTitle className="text-base truncate">{selectedUpload.original_filename}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">{selectedUpload.file_id}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>File Size</CardDescription>
+              <CardTitle className="text-base">{formatBytes(selectedUpload.file_size_bytes)}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">Stored in upload history</CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Uploaded At</CardDescription>
+              <CardTitle className="text-base">{formatDate(selectedUpload.created_at)}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">UTC timestamp from backend</CardContent>
+          </Card>
+        </div>
+      )}
+
+      {detailLoading && (
+        <Card>
+          <CardContent className="pt-6 text-sm text-muted-foreground">Loading schema profile and insights...</CardContent>
+        </Card>
+      )}
+
+      {detailError && (
+        <Card>
+          <CardContent className="pt-6 text-sm text-red-600">{detailError}</CardContent>
+        </Card>
+      )}
+
+      {!detailLoading && !detailError && selectedFileId && !schemaProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Schema Unavailable</CardTitle>
+            <CardDescription>This file has no saved schema profile yet.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Re-upload this CSV to regenerate profiling metadata and insights.
+          </CardContent>
+        </Card>
+      )}
+
+      {!detailLoading && !detailError && schemaProfile && insights && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>Total Columns</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Columns3 className="w-5 h-5 text-blue-500" />
+                </div>
+                <div className="text-3xl text-foreground">{insights.summary.total_columns}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>Numeric Columns</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <Hash className="w-5 h-5 text-green-500" />
+                </div>
+                <div className="text-3xl text-foreground">{insights.summary.numeric_columns}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>Categorical Columns</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Type className="w-5 h-5 text-amber-500" />
+                </div>
+                <div className="text-3xl text-foreground">{insights.summary.categorical_columns}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardDescription>Columns With Missing</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-orange-500" />
+                </div>
+                <div className="text-3xl text-foreground">{insights.summary.columns_with_missing_values}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Column Type Distribution</CardTitle>
+                <CardDescription>Numeric vs categorical vs boolean column counts</CardDescription>
+              </CardHeader>
+              <CardContent className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={typeCountsData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="var(--color-chart-1)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Null Columns</CardTitle>
+                <CardDescription>Columns with highest missing value counts</CardDescription>
+              </CardHeader>
+              <CardContent className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={insights.columns_by_null_ratio}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" interval={0} angle={-25} textAnchor="end" height={75} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="null_count" fill="var(--color-chart-5)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Unique Columns</CardTitle>
+              <CardDescription>Columns with highest unique value counts</CardDescription>
+            </CardHeader>
+            <CardContent className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={insights.columns_by_unique_count}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" interval={0} angle={-25} textAnchor="end" height={75} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="unique_count" fill="var(--color-chart-2)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Numeric Distribution
+                </CardTitle>
+                <CardDescription>Histogram-style distribution for selected numeric column</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <select
+                  className="h-10 rounded-md border border-border bg-background px-3 text-sm w-full"
+                  value={selectedNumericColumn}
+                  onChange={(event) => setSelectedNumericColumn(event.target.value)}
+                  disabled={(insights.numeric_distributions?.length ?? 0) === 0}
+                >
+                  {(insights.numeric_distributions ?? []).length === 0 && (
+                    <option value="">No numeric columns available</option>
+                  )}
+                  {(insights.numeric_distributions ?? []).map((item) => (
+                    <option key={item.column} value={item.column}>{item.column}</option>
                   ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sampleRows.map((row, index) => (
-                  <TableRow key={index}>
-                    {Object.values(row).map((value, i) => (
-                      <TableCell key={i} className="text-sm text-muted-foreground">
-                        {value}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </select>
+
+                {selectedNumericDistribution ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div>Min: {selectedNumericDistribution.stats?.min ?? "-"}</div>
+                      <div>Max: {selectedNumericDistribution.stats?.max ?? "-"}</div>
+                      <div>Mean: {selectedNumericDistribution.stats?.mean ?? "-"}</div>
+                      <div>Median: {selectedNumericDistribution.stats?.median ?? "-"}</div>
+                    </div>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={selectedNumericDistribution.bins}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="label" interval={1} tick={{ fontSize: 10 }} />
+                          <YAxis allowDecimals={false} />
+                          <Tooltip />
+                          <Bar dataKey="count" fill="var(--color-chart-3)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No numeric distribution data available.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="w-4 h-4" />
+                  Categorical Frequency
+                </CardTitle>
+                <CardDescription>Top category frequencies for selected categorical column</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <select
+                  className="h-10 rounded-md border border-border bg-background px-3 text-sm w-full"
+                  value={selectedCategoricalColumn}
+                  onChange={(event) => setSelectedCategoricalColumn(event.target.value)}
+                  disabled={(insights.categorical_frequencies?.length ?? 0) === 0}
+                >
+                  {(insights.categorical_frequencies ?? []).length === 0 && (
+                    <option value="">No categorical columns available</option>
+                  )}
+                  {(insights.categorical_frequencies ?? []).map((item) => (
+                    <option key={item.column} value={item.column}>{item.column}</option>
+                  ))}
+                </select>
+
+                {selectedCategoricalFrequency ? (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={selectedCategoricalFrequency.values}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="value" interval={0} angle={-25} textAnchor="end" height={75} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="var(--color-chart-4)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No categorical frequency data available.</p>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Warnings & Notices */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Data Quality Notices</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
-              <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm text-foreground mb-1">High missing values detected</p>
-                <p className="text-xs text-muted-foreground">
-                  Column "total_charges" has 3.5% missing values. Consider imputation or filtering.
-                </p>
+          <Card>
+            <CardHeader>
+              <CardTitle>Schema Table</CardTitle>
+              <CardDescription>Detailed per-column profile metrics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border border-border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Column</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Null Count</TableHead>
+                      <TableHead>Null Ratio</TableHead>
+                      <TableHead>Unique Count</TableHead>
+                      <TableHead>Sample Values</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {schemaProfile.columns.map((column) => (
+                      <TableRow key={column.name}>
+                        <TableCell className="font-mono text-xs">{column.name}</TableCell>
+                        <TableCell>{column.inferred_dtype}</TableCell>
+                        <TableCell>{column.null_count}</TableCell>
+                        <TableCell>{formatPercent(column.null_ratio ?? 0)}</TableCell>
+                        <TableCell>{column.unique_count}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {(column.sample_values ?? []).slice(0, 5).join(", ") || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm text-foreground mb-1">Categorical encoding recommended</p>
-                <p className="text-xs text-muted-foreground">
-                  9 string columns detected. AI workflows may benefit from label encoding.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm text-foreground mb-1">Schema validation passed</p>
-                <p className="text-xs text-muted-foreground">
-                  All columns have consistent data types across rows.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Next Steps */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ready for Next Step</CardTitle>
-            <CardDescription>Your dataset is profiled and validated</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Schema profiling is complete. Future milestones will unlock AI-powered transformation,
-              multi-agent orchestration, and automated pipeline generation.
-            </p>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-                <span>AI data cleaning and transformation</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-                <span>Automated feature engineering</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-                <span>Multi-agent workflow orchestration</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-                <span>Power BI export and visualization</span>
-              </div>
-            </div>
-
-            <Button className="w-full" disabled>
-              Launch AI Workflow
-              <Badge variant="secondary" className="ml-2 text-[10px]">
-                Coming Soon
-              </Badge>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Preview Rows</CardTitle>
+              <CardDescription>Quick sample of uploaded data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {previewRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No preview rows available for this dataset.</p>
+              ) : (
+                <div className="rounded-lg border border-border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {previewColumns.map((name) => (
+                          <TableHead key={name} className="font-mono text-xs">{name}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {previewRows.map((row, idx) => (
+                        <TableRow key={idx}>
+                          {previewColumns.map((name) => (
+                            <TableCell key={name} className="text-xs text-muted-foreground">
+                              {String(row[name] ?? "-")}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

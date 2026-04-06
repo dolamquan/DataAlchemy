@@ -3,6 +3,7 @@ import { AppLayout } from "./components/AppLayout";
 import { LandingPage } from "./pages/LandingPage";
 import { UploadDatasetPage } from "./pages/UploadDatasetPage";
 import { SchemaProfilePage } from "./pages/SchemaProfilePage";
+import { ProjectsPage } from "./pages/ProjectsPage";
 import { ComingSoonPage } from "./pages/ComingSoonPage";
 import { AdminPage } from "./pages/AdminPage";
 
@@ -18,13 +19,7 @@ export const router = createBrowserRouter([
       { index: true, Component: UploadDatasetPage },
       { path: "upload", Component: UploadDatasetPage },
       { path: "schema", Component: SchemaProfilePage },
-      {
-        path: "projects",
-        element: <ComingSoonPage
-          title="Projects"
-          description="Multi-project orchestration and AI planning will unlock after ingestion is complete. Organize your data workflows into logical projects with versioning and collaboration features."
-        />
-      },
+      { path: "projects", Component: ProjectsPage },
       {
         path: "agents",
         element: <ComingSoonPage
