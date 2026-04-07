@@ -24,6 +24,7 @@ class PlanStep(BaseModel):
 	step: str
 	agent: str
 	status: PlanStatus = "pending"
+	config: dict | None = None
 
 
 class ProjectPlanResponse(BaseModel):
@@ -31,3 +32,20 @@ class ProjectPlanResponse(BaseModel):
 	user_goal: UserGoal
 	summary: str
 	plan: list[PlanStep]
+
+
+class SupervisorStartRequest(BaseModel):
+	dataset_id: str = Field(..., min_length=1, max_length=256)
+	user_message: str = Field(..., min_length=3, max_length=4000)
+
+
+class SupervisorMessageRequest(BaseModel):
+	session_id: str = Field(..., min_length=1, max_length=128)
+	user_message: str = Field(..., min_length=1, max_length=4000)
+
+
+class SupervisorResponse(BaseModel):
+	session_id: str
+	type: Literal["proposal", "final"]
+	message: str | None = None
+	plan: ProjectPlanResponse | None = None

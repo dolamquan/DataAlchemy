@@ -92,6 +92,7 @@ export interface ProjectPlanStep {
   step: string;
   agent: string;
   status: ProjectPlanStatus;
+  config?: Record<string, unknown> | null;
 }
 
 export interface ProjectPlanResponse {
@@ -106,6 +107,13 @@ export interface ProjectPlanResponse {
     | "preprocess_and_train";
   summary: string;
   plan: ProjectPlanStep[];
+}
+
+export interface SupervisorResponse {
+  session_id: string;
+  type: "proposal" | "final";
+  message: string | null;
+  plan: ProjectPlanResponse | null;
 }
 
 async function parseJsonOrThrow<T>(response: Response, context: string): Promise<T> {
@@ -157,4 +165,28 @@ export async function createProjectPlan(datasetId: string, userMessage: string):
   });
 
   return parseJsonOrThrow<ProjectPlanResponse>(response, "Create project plan");
+}
+
+export async function startSupervisorSession(
+  datasetId: string,
+  userMessage: string,
+): Promise<SupervisorResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/supervisor/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dataset_id: datasetId, user_message: userMessage }),
+  });
+  return parseJsonOrThrow<SupervisorResponse>(response, "Start supervisor session");
+}
+
+export async function sendSupervisorMessage(
+  sessionId: string,
+  userMessage: string,
+): Promise<SupervisorResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/supervisor/message`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, user_message: userMessage }),
+  });
+  return parseJsonOrThrow<SupervisorResponse>(response, "Send supervisor message");
 }
