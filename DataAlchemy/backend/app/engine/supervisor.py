@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.db.models import get_upload_record_by_file_id, get_upload_schema_by_file_id
+from app.engine.coordinator import Coordinator
 from app.engine.llm_client import call_supervisor_llm
 from app.engine.registry import get_agent_config
 from app.engine.schemas import PlanStep, ProjectPlanResponse, SupervisorResponse
@@ -219,15 +221,19 @@ def _process_result(
             type="proposal",
             message=result["input"].get("clarification"),
             plan=plan,
+            execution=None,
         )
 
     if result["tool"] == "finalize_plan":
         plan = _build_plan_response(dataset_id, result["input"])
+        coordinator = Coordinator()
+        execution = asyncio.run(coordinator.execute_plan(plan=plan, dataset_id=dataset_id))
         return SupervisorResponse(
             session_id=session_id,
             type="final",
             message=None,
             plan=plan,
+            execution=execution,
         )
 
     raise RuntimeError(f"Unexpected tool: {result['tool']}")

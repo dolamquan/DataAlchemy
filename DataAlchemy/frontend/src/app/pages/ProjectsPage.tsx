@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Calendar, CheckCircle, FolderKanban, Send, Sparkles, User } from "lucide-react";
+import { AlertTriangle, Bot, Calendar, CheckCircle, FolderKanban, Send, Sparkles, User } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Textarea } from "../components/ui/textarea";
 import {
+  type CoordinatorExecution,
   fetchRecentUploads,
   sendSupervisorMessage,
   startSupervisorSession,
@@ -35,7 +36,89 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   plan?: ProjectPlanResponse | null;
+  execution?: CoordinatorExecution | null;
   isFinal?: boolean;
+}
+
+function getExecutionStepState(stepName: string, execution?: CoordinatorExecution | null) {
+  if (!execution) return "pending";
+  if (execution.failed_step === stepName) return "failed";
+  if (execution.completed_steps.includes(stepName)) return "completed";
+  return "pending";
+}
+
+function ExecutionPanel({ plan, execution }: { plan: ProjectPlanResponse; execution?: CoordinatorExecution | null }) {
+  const status = execution?.status ?? "pending";
+
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-sm font-medium text-foreground">Coordinator Execution</p>
+        <Badge
+          variant={status === "failed" ? "destructive" : status === "success" ? "default" : "secondary"}
+          className="capitalize"
+        >
+          {status}
+        </Badge>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Worker agents are currently placeholder handlers. This view reflects orchestration flow and step state.
+      </p>
+
+      <div className="space-y-2">
+        {plan.plan.map((item, index) => {
+          const state = getExecutionStepState(item.step, execution);
+          return (
+            <div key={`${item.step}-${index}-execution`} className="rounded-md border border-border bg-background p-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-xs text-foreground">
+                  {index + 1}. {item.step}
+                </p>
+                <Badge
+                  variant={state === "failed" ? "destructive" : "outline"}
+                  className={state === "completed" ? "border-green-600 text-green-700" : "capitalize"}
+                >
+                  {state}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Agent: {item.agent}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {!!execution && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div className="rounded-md border border-border bg-background p-2">
+            <p className="text-[11px] text-muted-foreground">Completed Steps</p>
+            <p className="text-sm text-foreground">{execution.completed_steps.length}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background p-2">
+            <p className="text-[11px] text-muted-foreground">Artifacts</p>
+            <p className="text-sm text-foreground">{execution.artifacts.length}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background p-2">
+            <p className="text-[11px] text-muted-foreground">Failed Step</p>
+            <p className="text-sm text-foreground">{execution.failed_step ?? "None"}</p>
+          </div>
+        </div>
+      )}
+
+      {!!execution?.dashboard_updates?.length && (
+        <div className="rounded-md border border-border bg-background p-2.5">
+          <p className="text-xs font-medium text-foreground mb-2">Dashboard Updates</p>
+          <div className="space-y-1.5 max-h-28 overflow-auto pr-1">
+            {execution.dashboard_updates.map((update, idx) => (
+              <p key={idx} className="text-[11px] text-muted-foreground">
+                [{update.status ?? "info"}] {update.agent ?? "agent"}/{update.step ?? "step"}: {update.message ?? "-"}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PlanCard({ plan, isFinal }: { plan: ProjectPlanResponse; isFinal?: boolean }) {
@@ -131,6 +214,7 @@ export function ProjectsPage() {
       role: "assistant",
       content: response.message ?? (response.type === "final" ? "Plan confirmed and locked." : ""),
       plan: response.plan,
+      execution: response.execution ?? null,
       isFinal: response.type === "final",
     };
 
@@ -309,10 +393,21 @@ export function ProjectsPage() {
                 >
                   {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
                   {msg.plan && <PlanCard plan={msg.plan} isFinal={msg.isFinal} />}
+                  {msg.isFinal && msg.plan && <ExecutionPanel plan={msg.plan} execution={msg.execution} />}
                   {msg.isFinal && (
-                    <div className="flex items-center gap-1.5 mt-3 text-xs text-green-600 font-medium">
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Plan confirmed and ready for execution
+                    <div
+                      className={`flex items-center gap-1.5 mt-3 text-xs font-medium ${
+                        msg.execution?.status === "failed" ? "text-red-600" : "text-green-600"
+                      }`}
+                    >
+                      {msg.execution?.status === "failed" ? (
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                      ) : (
+                        <CheckCircle className="w-3.5 h-3.5" />
+                      )}
+                      {msg.execution?.status === "failed"
+                        ? "Coordinator stopped after a failed step"
+                        : "Plan confirmed and handed off to Coordinator"}
                     </div>
                   )}
                 </div>
@@ -364,7 +459,7 @@ export function ProjectsPage() {
           ) : (
             <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-3">
               <p className="text-sm text-green-700 font-medium">
-                Plan finalized. Ready to pass to the Coordinator for execution.
+                Plan finalized. Coordinator run has been visualized above.
               </p>
               <Button variant="outline" size="sm" onClick={handleNewSession}>
                 Start New Session

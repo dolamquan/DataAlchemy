@@ -6,6 +6,7 @@ import { SchemaProfilePage } from "./pages/SchemaProfilePage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ComingSoonPage } from "./pages/ComingSoonPage";
 import { AdminPage } from "./pages/AdminPage";
+import { AgentsPage } from "./pages/AgentsPage";
 
 export const router = createBrowserRouter([
   {
@@ -20,13 +21,7 @@ export const router = createBrowserRouter([
       { path: "upload", Component: UploadDatasetPage },
       { path: "schema", Component: SchemaProfilePage },
       { path: "projects", Component: ProjectsPage },
-      {
-        path: "agents",
-        element: <ComingSoonPage
-          title="Agents"
-          description="Multi-agent orchestration will arrive in a future milestone. Deploy autonomous AI agents to handle complex data transformation, quality checks, and intelligent pipeline automation."
-        />
-      },
+      { path: "agents", Component: AgentsPage },
       {
         path: "reports",
         element: <ComingSoonPage

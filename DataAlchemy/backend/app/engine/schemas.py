@@ -49,3 +49,4 @@ class SupervisorResponse(BaseModel):
 	type: Literal["proposal", "final"]
 	message: str | None = None
 	plan: ProjectPlanResponse | None = None
+	execution: dict | None = None

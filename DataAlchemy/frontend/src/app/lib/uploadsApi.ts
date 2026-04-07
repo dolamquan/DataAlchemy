@@ -114,6 +114,29 @@ export interface SupervisorResponse {
   type: "proposal" | "final";
   message: string | null;
   plan: ProjectPlanResponse | null;
+  execution?: CoordinatorExecution | null;
+}
+
+export interface CoordinatorExecutionResult {
+  step: string;
+  agent: string;
+  result?: unknown;
+}
+
+export interface CoordinatorDashboardUpdate {
+  step?: string;
+  agent?: string;
+  status?: string;
+  message?: string;
+}
+
+export interface CoordinatorExecution {
+  status: "success" | "failed";
+  completed_steps: string[];
+  failed_step: string | null;
+  results: CoordinatorExecutionResult[];
+  artifacts: Array<Record<string, unknown>>;
+  dashboard_updates: CoordinatorDashboardUpdate[];
 }
 
 async function parseJsonOrThrow<T>(response: Response, context: string): Promise<T> {
