@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -9,6 +10,7 @@ from fastapi import HTTPException
 
 from app.db.models import get_upload_record_by_file_id, get_upload_schema_by_file_id
 from app.engine.llm_client import call_supervisor_llm
+from app.engine.registry import get_agent_config
 from app.engine.schemas import PlanStep, ProjectPlanResponse, SupervisorResponse
 
 
@@ -18,10 +20,11 @@ _sessions: dict[str, dict[str, Any]] = {}
 # Key: session_id
 # Value: {
 #     "dataset_id": str,
-#     "system_prompt": str,          # base prompt + schema context
+#     "system_prompt": str,          # base prompt + schema context (built at session start)
 #     "messages": list[dict],        # OpenAI messages format
 #     "plan": ProjectPlanResponse | None,
 #     "finished": bool,
+#     "agent_config": dict,          # supervisor config from agents.yaml
 # }
 
 
@@ -80,44 +83,9 @@ def format_schema_for_llm(schema_profile: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-# ========== System Prompt ==========
-
-SYSTEM_PROMPT = """\
-You are the DataAlchemy Supervisor, an expert data science project planner.
-
-The user will tell you what they want to do with their dataset. Your job is to:
-1. Read their request and the dataset schema profile provided below.
-2. Immediately draft a concrete execution plan using the propose_plan function.
-3. Present the plan with a short clarification asking if it looks right.
-4. If the user requests changes, revise the plan and call propose_plan again.
-5. If the user confirms the plan ("yes", "looks good", "go ahead", "confirm", etc.), call finalize_plan.
-
-IMPORTANT RULES:
-- Always respond with a function call. Never respond with plain text.
-- Always draft a plan on the FIRST response. Do not ask questions before showing a plan.
-- Keep plans between 3-6 steps.
-- Always start with a profile_dataset step (agent: supervisor).
-- For ML tasks, always include evaluation after training.
-- Use the config field to pass step-specific parameters (target column, algorithm, metrics, drop columns, imputation strategy, etc.).
-- Be concise in summaries and clarifications.
-- When the user asks for changes, apply them precisely and re-propose.
-- When the user confirms, call finalize_plan with the exact same plan.
-
-Available agents for plan steps:
-- supervisor: dataset profiling
-- data_preprocessing_agent: cleaning, imputation, encoding, scaling, feature engineering
-- data_quality_agent: data validation, integrity checks
-- visualization_agent: EDA charts, distributions, correlations
-- schema_agent: deep schema analysis, type recommendations
-- model_training_agent: train ML models (classification, regression, clustering)
-- evaluation_agent: metrics, cross-validation, feature importance
-- report_agent: summary reports, findings documentation
-
-Plan step naming conventions (use snake_case):
-profile_dataset, preprocess_data, validate_data, generate_visualizations,
-analyze_schema, prepare_training_data, train_model, evaluate_model,
-generate_report, summarize_insights
-"""
+def _build_full_system_prompt(base_prompt: str, schema_text: str) -> str:
+    """Append the dataset schema profile to the base system prompt."""
+    return base_prompt.rstrip() + "\n\n## Dataset Schema Profile:\n" + schema_text
 
 
 # ========== Core Logic ==========
@@ -126,23 +94,36 @@ generate_report, summarize_insights
 def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
     """Create a new session, load schema, send user's request to LLM, return draft plan."""
 
+    # Load agent config from registry
+    agent_config = get_agent_config("supervisor")
+
+    # Validate dataset exists
     record = get_upload_record_by_file_id(dataset_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
+    # Load schema profile
     schema_profile = get_upload_schema_by_file_id(dataset_id)
     if schema_profile is None:
         raise HTTPException(status_code=404, detail="Schema profile not found for dataset")
 
+    # Build full system prompt: base from agents.yaml + schema context
+    base_prompt = agent_config["system_prompt"]
     schema_text = format_schema_for_llm(schema_profile)
-    full_system = SYSTEM_PROMPT + "\n## Dataset Schema Profile:\n" + schema_text
+    full_system = _build_full_system_prompt(base_prompt, schema_text)
 
     session_id = _new_session_id()
     messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
 
-    result = call_supervisor_llm(system_prompt=full_system, messages=messages)
+    result = call_supervisor_llm(
+        system_prompt=full_system,
+        messages=messages,
+        model=agent_config["model"],
+        max_tokens=agent_config["max_tokens"],
+        temperature=agent_config.get("temperature", 0.2),
+    )
 
-    # Append assistant's response to history
+    # Append assistant tool_call to history
     messages.append({
         "role": "assistant",
         "tool_calls": [{
@@ -150,7 +131,7 @@ def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
             "type": "function",
             "function": {
                 "name": result["tool"],
-                "arguments": __import__("json").dumps(result["input"]),
+                "arguments": json.dumps(result["input"]),
             },
         }],
     })
@@ -163,6 +144,7 @@ def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
         "messages": messages,
         "plan": response.plan,
         "finished": response.type == "final",
+        "agent_config": agent_config,
     }
 
     return response
@@ -177,8 +159,10 @@ def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
     if session["finished"]:
         raise HTTPException(status_code=400, detail="Session already has a finalized plan")
 
-    # The last message in history is an assistant tool_call.
-    # OpenAI requires a tool result message before the next user message.
+    agent_config = session["agent_config"]
+
+    # OpenAI requires a tool_result message after an assistant tool_call
+    # before accepting the next user message
     last_msg = session["messages"][-1]
     if last_msg.get("role") == "assistant" and last_msg.get("tool_calls"):
         tool_call_id = last_msg["tool_calls"][0]["id"]
@@ -193,9 +177,12 @@ def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
     result = call_supervisor_llm(
         system_prompt=session["system_prompt"],
         messages=session["messages"],
+        model=agent_config["model"],
+        max_tokens=agent_config["max_tokens"],
+        temperature=agent_config.get("temperature", 0.2),
     )
 
-    # Append assistant response to history
+    # Append assistant tool_call to history
     session["messages"].append({
         "role": "assistant",
         "tool_calls": [{
@@ -203,7 +190,7 @@ def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
             "type": "function",
             "function": {
                 "name": result["tool"],
-                "arguments": __import__("json").dumps(result["input"]),
+                "arguments": json.dumps(result["input"]),
             },
         }],
     })

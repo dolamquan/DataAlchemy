@@ -7,7 +7,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from app.core.settings import OPENAI_API_KEY, OPENAI_MODEL
+from app.core.settings import OPENAI_API_KEY
 
 # ---------- Shared step schema ----------
 
@@ -121,6 +121,9 @@ def call_supervisor_llm(
     *,
     system_prompt: str,
     messages: list[dict[str, Any]],
+    model: str = "gpt-4o",
+    max_tokens: int = 4096,
+    temperature: float = 0.2,
 ) -> dict[str, Any]:
     """
     Call OpenAI with function calling forced.
@@ -135,11 +138,12 @@ def call_supervisor_llm(
     full_messages = [{"role": "system", "content": system_prompt}] + messages
 
     response = client.chat.completions.create(
-        model=OPENAI_MODEL,
+        model=model,
         messages=full_messages,
         tools=TOOLS,
         tool_choice="required",
-        max_tokens=4096,
+        max_tokens=max_tokens,
+        temperature=temperature,
     )
 
     message = response.choices[0].message
