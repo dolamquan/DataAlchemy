@@ -24,7 +24,6 @@ class Coordinator:
         for step in plan.plan:
             step_name = step.step
             payload = self._build_step_payload(dataset_id=dataset_id, step=step)
-
             try:
                 step_result = await run_agent(step.agent, payload)
             except Exception as exc:

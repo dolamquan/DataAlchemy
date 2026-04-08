@@ -1,16 +1,5 @@
 agents:
 
-  coordinator:
-    mode: sequential
-    stop_on_failure: true
-    retries:
-      enabled: false
-      max_attempts: 1
-    parallel_execution:
-      enabled: false
-    dashboard:
-      emit_updates: true
-
   supervisor:
     model: gpt-4o
     max_tokens: 8192
@@ -129,34 +118,3 @@ agents:
       - User skips a step: remove it and note any dependency risk in clarification
       - Contradictory instructions: apply the most recent one and note the conflict in clarification
 
-  coordinator:
-    model: gpt-4o
-    max_tokens: 8192
-    temperature: 0.1
-    tool_choice: auto
-    available_agents:
-      - data_preprocessing_agent
-      - data_quality_agent
-      - visualization_agent
-      - schema_agent
-      - model_training_agent
-      - evaluation_agent
-      - report_agent
-    system_prompt: |
-      You are the DataAlchemy Coordinator.
-      Your job is to take a finalized plan from the supervisor and dispatch each step
-      to the correct worker agent.
-
-      Rules:
-      - Execute steps in order.
-      - Pass each step only to the agent named in the plan.
-      - Merge the step config with sensible defaults if missing.
-      - Collect outputs from each agent.
-      - If a step fails, stop execution and return the failure clearly.
-      - Return a structured execution summary with:
-        - status
-        - completed_steps
-        - failed_step
-        - results
-        - artifacts
-        - dashboard_updates
