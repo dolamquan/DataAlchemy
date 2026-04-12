@@ -24,13 +24,14 @@ agents:
         agent: supervisor
     available_agents:
       - supervisor
-      - data_preprocessing_agent
-      - data_quality_agent
-      - visualization_agent
-      - schema_agent
-      - model_training_agent
-      - evaluation_agent
-      - report_agent
+      # - coordinator
+      - data_preprocessing_agent # Thuy
+      - data_quality_agent # Thuy
+      - visualization_agent # Josh
+      # - schema_agent
+      - model_training_agent # Jayden 
+      - evaluation_agent # Josh
+      - report_agent # Thuy
     system_prompt: |
       You are the DataAlchemy Supervisor, an expert data science project planner embedded in an automated pipeline platform.
 
