@@ -107,3 +107,21 @@ def get_upload_record_by_file_id(file_id: str) -> dict[str, Any] | None:
 		return None
 
 	return dict(row)
+
+
+def get_upload_stored_path_by_file_id(file_id: str) -> str | None:
+	"""Return the on-disk stored_path for a given file_id, or None if not found."""
+	with get_connection() as conn:
+		row = conn.execute(
+			"""
+			SELECT stored_path
+			FROM uploads
+			WHERE file_id = ?
+			""",
+			(file_id,),
+		).fetchone()
+
+	if row is None:
+		return None
+
+	return row["stored_path"]

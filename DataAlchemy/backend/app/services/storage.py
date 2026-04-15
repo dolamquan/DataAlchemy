@@ -26,6 +26,17 @@ def generate_stored_filename(original_filename: str) -> str:
     return f"{uuid.uuid4().hex}{extension}"
 
 
+def get_upload_path(file_id: str) -> Path:
+    """Return the absolute Path to the uploaded file given its file_id (stored filename).
+
+    Raises FileNotFoundError if the file does not exist on disk.
+    """
+    path = UPLOAD_DIR / file_id
+    if not path.exists():
+        raise FileNotFoundError(f"Upload file not found on disk: {path}")
+    return path
+
+
 def save_upload(file: UploadFile) -> dict:
     """
     Save uploaded file to disk in chunks with size enforcement.
