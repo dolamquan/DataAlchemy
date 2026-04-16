@@ -362,7 +362,8 @@ def _resolve_config(payload_config: dict[str, Any]) -> dict[str, Any]:
         defaults = {}
 
     resolved = {
-        "null_threshold": 0.30,
+        # null ratio should be higher like around 0.5 - this also depends on the data context and use case. for now, can put as 0.5
+        "null_threshold": 0.50,
         "outlier_method": "iqr",
         "flag_id_columns": True,
         "check_duplicates": True,
