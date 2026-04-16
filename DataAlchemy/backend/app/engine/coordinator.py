@@ -23,7 +23,7 @@ class Coordinator:
 
         for step in plan.plan:
             step_name = step.step
-            payload = self._build_step_payload(dataset_id=dataset_id, step=step)
+            payload = self._build_step_payload(dataset_id=dataset_id, step=step, prior_results=results)
             try:
                 step_result = await run_agent(step.agent, payload)
             except Exception as exc:
@@ -75,10 +75,11 @@ class Coordinator:
         }
 
     @staticmethod
-    def _build_step_payload(*, dataset_id: str, step: PlanStep) -> dict[str, Any]:
+    def _build_step_payload(*, dataset_id: str, step: PlanStep, prior_results: list[dict[str, Any]]) -> dict[str, Any]:
         return {
             "dataset_id": dataset_id,
             "step": step.step,
             "agent": step.agent,
             "config": step.config or {},
+            "prior_results": prior_results,
         }
