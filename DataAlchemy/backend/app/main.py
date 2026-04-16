@@ -7,6 +7,7 @@ from app.api.routes_supervisor import router as supervisor_router
 from app.api.routes_upload import router as upload_router
 from app.core.settings import CORS_ORIGINS
 from app.db.models import init_upload_tables
+import app.engine.agent_runtime  # noqa: F401 — registers real agent handlers on import
 
 app = FastAPI(title="DataAlchemy API", version="0.1.0")
 

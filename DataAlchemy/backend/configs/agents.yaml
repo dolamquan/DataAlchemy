@@ -119,3 +119,24 @@ agents:
       - User skips a step: remove it and note any dependency risk in clarification
       - Contradictory instructions: apply the most recent one and note the conflict in clarification
 
+  data_quality_agent:
+    description: Validates data quality across null ratios, duplicates, outliers, and type consistency
+    defaults:
+      null_threshold: 0.30
+      outlier_method: iqr        # iqr or zscore
+      flag_id_columns: true
+      check_duplicates: true
+      imbalance_threshold: 0.20  # minority class ratio below this triggers a warning
+
+  data_preprocessing_agent:
+    description: Cleans and transforms the dataset (imputation, encoding, scaling, deduplication)
+    defaults:
+      impute_strategy: mean          # numeric: mean | median | constant
+      impute_strategy_cat: mode      # categorical: mode | constant
+      encoding_strategy: onehot      # onehot | label
+      max_onehot_cardinality: 15     # columns with more unique values fall back to label encoding
+      scaler: standard               # standard | minmax | none
+      drop_duplicates: true
+      auto_drop_ids: true            # auto-detect and drop ID-like columns
+      feature_engineering: false     # enable date decomposition
+
