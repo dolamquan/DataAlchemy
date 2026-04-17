@@ -99,6 +99,8 @@ async def run_agent(agent_name: str, payload: dict[str, Any]) -> dict[str, Any]:
 # Register real agent handlers — imported here so registration happens at module load time.
 from app.agents.data_quality_agent import data_quality_handler  # noqa: E402
 from app.agents.data_preprocessing_agent import data_preprocessing_handler  # noqa: E402
+from app.agents.model_training_agent import model_training_handler  # noqa: E402
 
 register_agent_handler("data_quality_agent", data_quality_handler)
 register_agent_handler("data_preprocessing_agent", data_preprocessing_handler)
+register_agent_handler("model_training_agent", model_training_handler)

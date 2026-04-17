@@ -140,3 +140,15 @@ agents:
       auto_drop_ids: true            # auto-detect and drop ID-like columns
       feature_engineering: false     # enable date decomposition
 
+  model_training_agent:
+    description: Selects and hyperparameter-tunes an ML model for the dataset.
+    defaults:
+      task_type: null              # auto-detect (classification | regression)
+      target_column: null          # supervisor should provide; agent infers as fallback
+      model: null                  # null = rule-based selection across candidates
+      metric: null                 # auto-pick based on task type
+      n_trials: null               # null = scale with dataset size
+      cv_folds: 5
+      random_state: 42
+      hpo_timeout_seconds: null    # optional wallclock cap per candidate (seconds)
+

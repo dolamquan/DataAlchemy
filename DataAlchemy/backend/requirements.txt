@@ -3,3 +3,10 @@ uvicorn[standard]
 python-multipart
 openai
 pyyaml
+scikit-learn
+pandas
+numpy
+optuna
+xgboost
+lightgbm
+joblib
