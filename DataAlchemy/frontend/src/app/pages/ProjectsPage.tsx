@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bot, Calendar, CheckCircle, FolderKanban, Send, Sparkles, User } from "lucide-react";
+import { AlertTriangle, Bot, Calendar, CheckCircle, Download, FolderKanban, Send, Sparkles, User } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Textarea } from "../components/ui/textarea";
 import {
+  artifactDownloadUrl,
   type CoordinatorExecution,
   fetchRecentUploads,
   sendSupervisorMessage,
@@ -47,6 +48,76 @@ function getExecutionStepState(stepName: string, execution?: CoordinatorExecutio
   return "pending";
 }
 
+interface TrainingResult {
+  chosen_model: string;
+  cv_score: number;
+  metric: string;
+  task_type: string;
+  target_column: string;
+  target_inferred: boolean;
+  n_samples: number;
+  n_features: number;
+  training_time_seconds: number;
+  model_file_id: string;
+}
+
+function TrainingResultCard({ execution }: { execution?: CoordinatorExecution | null }) {
+  if (!execution || execution.status !== "success") return null;
+
+  const entry = execution.results.find((r) => r.agent === "model_training_agent");
+  if (!entry?.result) return null;
+
+  const r = entry.result as TrainingResult;
+  if (!r.chosen_model) return null;
+
+  return (
+    <Card className="border-blue-500/30 bg-blue-950/20">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <span>Training Results</span>
+          <Badge variant="outline" className="border-green-500/40 text-green-400 text-xs">
+            {r.task_type}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="rounded-md border border-border bg-background p-2">
+            <p className="text-[11px] text-muted-foreground">Model</p>
+            <p className="text-sm text-foreground font-medium truncate">{r.chosen_model}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background p-2">
+            <p className="text-[11px] text-muted-foreground">{r.metric}</p>
+            <p className="text-sm text-foreground font-medium">{r.cv_score.toFixed(4)}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background p-2">
+            <p className="text-[11px] text-muted-foreground">Target</p>
+            <p className="text-sm text-foreground truncate">
+              {r.target_column}
+              {r.target_inferred && (
+                <span className="text-muted-foreground"> (inferred)</span>
+              )}
+            </p>
+          </div>
+          <div className="rounded-md border border-border bg-background p-2">
+            <p className="text-[11px] text-muted-foreground">Dataset</p>
+            <p className="text-sm text-foreground">{r.n_samples.toLocaleString()} × {r.n_features}</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">Trained in {r.training_time_seconds}s</p>
+          <a href={artifactDownloadUrl(r.model_file_id)} download={r.model_file_id}>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <Download className="w-3.5 h-3.5" />
+              Download model (.joblib)
+            </Button>
+          </a>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ExecutionPanel({ plan, execution }: { plan: ProjectPlanResponse; execution?: CoordinatorExecution | null }) {
   const status = execution?.status ?? "pending";
 
@@ -87,6 +158,8 @@ function ExecutionPanel({ plan, execution }: { plan: ProjectPlanResponse; execut
           );
         })}
       </div>
+
+      <TrainingResultCard execution={execution} />
 
       {!!execution && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">

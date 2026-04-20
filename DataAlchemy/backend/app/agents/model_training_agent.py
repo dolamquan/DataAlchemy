@@ -268,7 +268,7 @@ def _scale_n_trials(n_samples: int) -> int:
 
 
 # ---------------------------------------------------------------------------
-# CV builder
+# CV builder - Pick a cross-validation strategy based on task (Classification -> StratifiedKFold / Regression -> KFold)
 # ---------------------------------------------------------------------------
 
 def _build_cv(task_type: str, n_splits: int = 5):
@@ -278,7 +278,7 @@ def _build_cv(task_type: str, n_splits: int = 5):
 
 
 # ---------------------------------------------------------------------------
-# Optuna search spaces
+# Optuna search spaces - Pick hyperparameters to tune for each model
 # ---------------------------------------------------------------------------
 
 def _get_search_space(trial: optuna.Trial, model_name: str) -> dict[str, Any]:

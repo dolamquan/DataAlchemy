@@ -1,5 +1,7 @@
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 
+from app.core.settings import UPLOAD_DIR
 from app.db.models import create_upload_record, get_upload_schema_by_file_id, list_recent_upload_records
 from app.services.schema_profiler import build_schema_insights, profile_csv
 from app.services.storage import save_upload
@@ -30,6 +32,19 @@ def upload_insights(file_id: str, top_n: int = Query(default=8, ge=1, le=25)):
         "file_id": file_id,
         "insights": build_schema_insights(schema_profile=schema, top_n=top_n),
     }
+
+
+@router.get("/artifacts/{file_id}")
+def download_artifact(file_id: str):
+    if "/" in file_id or "\\" in file_id or ".." in file_id:
+        raise HTTPException(status_code=400, detail="Invalid file_id")
+    path = (UPLOAD_DIR / file_id).resolve()
+    upload_dir_resolved = UPLOAD_DIR.resolve()
+    if not str(path).startswith(str(upload_dir_resolved)):
+        raise HTTPException(status_code=400, detail="Invalid file_id")
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return FileResponse(path, filename=file_id, media_type="application/octet-stream")
 
 
 @router.post("/upload")

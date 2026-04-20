@@ -202,6 +202,10 @@ export async function startSupervisorSession(
   return parseJsonOrThrow<SupervisorResponse>(response, "Start supervisor session");
 }
 
+export function artifactDownloadUrl(fileId: string): string {
+  return `${API_BASE_URL}/api/artifacts/${encodeURIComponent(fileId)}`;
+}
+
 export async function sendSupervisorMessage(
   sessionId: string,
   userMessage: string,

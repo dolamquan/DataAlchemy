@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import uuid
 from typing import Any
@@ -93,7 +92,7 @@ def _build_full_system_prompt(base_prompt: str, schema_text: str) -> str:
 # ========== Core Logic ==========
 
 
-def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
+async def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
     """Create a new session, load schema, send user's request to LLM, return draft plan."""
 
     # Load agent config from registry
@@ -138,7 +137,7 @@ def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
         }],
     })
 
-    response = _process_result(session_id, dataset_id, result)
+    response = await _process_result(session_id, dataset_id, result)
 
     _sessions[session_id] = {
         "dataset_id": dataset_id,
@@ -152,7 +151,7 @@ def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
     return response
 
 
-def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
+async def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
     """Send a user message in an existing session, get back revised plan or final plan."""
 
     session = _sessions.get(session_id)
@@ -198,7 +197,7 @@ def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
     })
 
     dataset_id = session["dataset_id"]
-    response = _process_result(session_id, dataset_id, result)
+    response = await _process_result(session_id, dataset_id, result)
 
     session["plan"] = response.plan
     if response.type == "final":
@@ -207,7 +206,7 @@ def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
     return response
 
 
-def _process_result(
+async def _process_result(
     session_id: str,
     dataset_id: str,
     result: dict[str, Any],
@@ -227,7 +226,7 @@ def _process_result(
     if result["tool"] == "finalize_plan":
         plan = _build_plan_response(dataset_id, result["input"])
         coordinator = Coordinator()
-        execution = asyncio.run(coordinator.execute_plan(plan=plan, dataset_id=dataset_id))
+        execution = await coordinator.execute_plan(plan=plan, dataset_id=dataset_id)
         return SupervisorResponse(
             session_id=session_id,
             type="final",

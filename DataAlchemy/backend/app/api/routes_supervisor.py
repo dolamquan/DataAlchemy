@@ -13,10 +13,10 @@ router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
 
 
 @router.post("/start", response_model=SupervisorResponse)
-def supervisor_start(payload: SupervisorStartRequest) -> SupervisorResponse:
-    return start_session(dataset_id=payload.dataset_id, user_message=payload.user_message)
+async def supervisor_start(payload: SupervisorStartRequest) -> SupervisorResponse:
+    return await start_session(dataset_id=payload.dataset_id, user_message=payload.user_message)
 
 
 @router.post("/message", response_model=SupervisorResponse)
-def supervisor_message(payload: SupervisorMessageRequest) -> SupervisorResponse:
-    return send_message(session_id=payload.session_id, user_message=payload.user_message)
+async def supervisor_message(payload: SupervisorMessageRequest) -> SupervisorResponse:
+    return await send_message(session_id=payload.session_id, user_message=payload.user_message)
