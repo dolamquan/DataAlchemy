@@ -14,6 +14,7 @@ import {
   type RecentUploadItem,
   type SupervisorResponse,
 } from "../lib/uploadsApi";
+import { saveAgentRuntimeSnapshot } from "../lib/agentRuntimeStore";
 
 function formatBytes(bytes?: number) {
   if (bytes === undefined || bytes === null) return "-";
@@ -41,11 +42,64 @@ interface ChatMessage {
   isFinal?: boolean;
 }
 
+interface ProjectsPageState {
+  selectedDatasetId: string;
+  inputValue: string;
+  chatMessages: ChatMessage[];
+  sessionId: string | null;
+  isFinalized: boolean;
+}
+
+const PROJECTS_PAGE_STATE_KEY = "dataalchemy.projectsPageState";
+
+const EMPTY_PROJECTS_PAGE_STATE: ProjectsPageState = {
+  selectedDatasetId: "",
+  inputValue: "",
+  chatMessages: [],
+  sessionId: null,
+  isFinalized: false,
+};
+
+function loadProjectsPageState(): ProjectsPageState {
+  try {
+    const raw = window.localStorage.getItem(PROJECTS_PAGE_STATE_KEY);
+    if (!raw) return EMPTY_PROJECTS_PAGE_STATE;
+
+    const parsed = JSON.parse(raw) as Partial<ProjectsPageState>;
+    return {
+      selectedDatasetId: typeof parsed.selectedDatasetId === "string" ? parsed.selectedDatasetId : "",
+      inputValue: typeof parsed.inputValue === "string" ? parsed.inputValue : "",
+      chatMessages: Array.isArray(parsed.chatMessages) ? parsed.chatMessages : [],
+      sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : null,
+      isFinalized: parsed.isFinalized === true,
+    };
+  } catch {
+    return EMPTY_PROJECTS_PAGE_STATE;
+  }
+}
+
+function saveProjectsPageState(state: ProjectsPageState) {
+  try {
+    window.localStorage.setItem(PROJECTS_PAGE_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // If browser storage is unavailable, the page still works with in-memory state.
+  }
+}
+
 function getExecutionStepState(stepName: string, execution?: CoordinatorExecution | null) {
   if (!execution) return "pending";
   if (execution.failed_step === stepName) return "failed";
   if (execution.completed_steps.includes(stepName)) return "completed";
   return "pending";
+}
+
+function artifactName(artifact: Record<string, unknown>) {
+  const value = artifact.name ?? artifact.file_id ?? artifact.path ?? artifact.type;
+  return typeof value === "string" ? value : "Generated artifact";
+}
+
+function artifactFileId(artifact: Record<string, unknown>) {
+  return typeof artifact.file_id === "string" ? artifact.file_id : null;
 }
 
 interface TrainingResult {
@@ -190,6 +244,35 @@ function ExecutionPanel({ plan, execution }: { plan: ProjectPlanResponse; execut
           </div>
         </div>
       )}
+
+      {!!execution?.artifacts?.length && (
+        <div className="rounded-md border border-border bg-background p-2.5">
+          <p className="text-xs font-medium text-foreground mb-2">Artifacts</p>
+          <div className="space-y-2">
+            {execution.artifacts.map((artifact, idx) => {
+              const fileId = artifactFileId(artifact);
+              return (
+                <div key={`${artifactName(artifact)}-${idx}`} className="flex items-center justify-between gap-2 rounded border border-border p-2">
+                  <div className="min-w-0">
+                    <p className="text-xs text-foreground truncate">{artifactName(artifact)}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {fileId ?? "Inline artifact"}
+                    </p>
+                  </div>
+                  {fileId && (
+                    <a href={artifactDownloadUrl(fileId)} download={fileId}>
+                      <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                        <Download className="w-3.5 h-3.5" />
+                        Download
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -230,12 +313,13 @@ function PlanCard({ plan, isFinal }: { plan: ProjectPlanResponse; isFinal?: bool
 }
 
 export function ProjectsPage() {
+  const [storedPageState] = useState(loadProjectsPageState);
   const [uploads, setUploads] = useState<RecentUploadItem[]>([]);
-  const [selectedDatasetId, setSelectedDatasetId] = useState("");
-  const [inputValue, setInputValue] = useState("");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isFinalized, setIsFinalized] = useState(false);
+  const [selectedDatasetId, setSelectedDatasetId] = useState(storedPageState.selectedDatasetId);
+  const [inputValue, setInputValue] = useState(storedPageState.inputValue);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(storedPageState.chatMessages);
+  const [sessionId, setSessionId] = useState<string | null>(storedPageState.sessionId);
+  const [isFinalized, setIsFinalized] = useState(storedPageState.isFinalized);
 
   const [uploadsLoading, setUploadsLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -253,6 +337,16 @@ export function ProjectsPage() {
   }, []);
 
   useEffect(() => {
+    saveProjectsPageState({
+      selectedDatasetId,
+      inputValue,
+      chatMessages,
+      sessionId,
+      isFinalized,
+    });
+  }, [selectedDatasetId, inputValue, chatMessages, sessionId, isFinalized]);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
@@ -263,7 +357,14 @@ export function ProjectsPage() {
       const items = await fetchRecentUploads(50);
       setUploads(items);
       if (items.length > 0) {
-        setSelectedDatasetId((current) => current || items[0].file_id);
+        setSelectedDatasetId((current) => {
+          if (current && items.some((item) => item.file_id === current)) {
+            return current;
+          }
+          return items[0].file_id;
+        });
+      } else {
+        setSelectedDatasetId("");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load datasets");
@@ -281,11 +382,16 @@ export function ProjectsPage() {
   }
 
   function handleSupervisorResponse(response: SupervisorResponse) {
+    const recoveredSession = !!sessionId && response.session_id !== sessionId;
     setSessionId(response.session_id);
+    saveAgentRuntimeSnapshot(response, selectedDatasetId);
 
     const assistantMsg: ChatMessage = {
       role: "assistant",
-      content: response.message ?? (response.type === "final" ? "Plan confirmed and locked." : ""),
+      content: [
+        recoveredSession ? "Your previous supervisor session expired, so I started a fresh one for this dataset." : "",
+        response.message ?? (response.type === "final" ? "Plan confirmed and locked." : ""),
+      ].filter(Boolean).join("\n\n"),
       plan: response.plan,
       execution: response.execution ?? null,
       isFinal: response.type === "final",
@@ -319,7 +425,7 @@ export function ProjectsPage() {
       if (!sessionId) {
         response = await startSupervisorSession(selectedDatasetId, text);
       } else {
-        response = await sendSupervisorMessage(sessionId, text);
+        response = await sendSupervisorMessage(sessionId, text, selectedDatasetId);
       }
 
       handleSupervisorResponse(response);
@@ -393,7 +499,7 @@ export function ProjectsPage() {
           {uploadsLoading && <p className="text-sm text-muted-foreground">Loading datasets...</p>}
           {!uploadsLoading && uploads.length === 0 && (
             <div className="text-sm text-muted-foreground rounded border border-dashed p-3">
-              No uploaded datasets found. Use Upload Dataset first.
+              No restorable uploaded datasets found. Use Upload Dataset to add the CSV again.
             </div>
           )}
         </CardContent>
@@ -414,7 +520,9 @@ export function ProjectsPage() {
               <CardDescription>File Size</CardDescription>
               <CardTitle className="text-base">{formatBytes(selectedDataset.file_size_bytes)}</CardTitle>
             </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">From upload history</CardContent>
+            <CardContent className="text-xs text-muted-foreground">
+              Source: {selectedDataset.storage_source === "db" ? "database copy" : "upload storage"}
+            </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">

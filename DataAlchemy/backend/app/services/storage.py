@@ -4,6 +4,7 @@ import uuid
 from fastapi import HTTPException, UploadFile
 
 from app.core.settings import ALLOWED_EXTENSIONS, MAX_UPLOAD_BYTES, UPLOAD_DIR
+from app.db.models import get_upload_file_content_by_file_id, get_upload_stored_path_by_file_id
 
 
 CHUNK_SIZE = 1024 * 1024  # 1 MB
@@ -35,6 +36,29 @@ def get_upload_path(file_id: str) -> Path:
     if not path.exists():
         raise FileNotFoundError(f"Upload file not found on disk: {path}")
     return path
+
+
+def resolve_upload_path_from_db(file_id: str) -> Path:
+    """Return an upload path, restoring the file from DB content if needed."""
+    stored_path = get_upload_stored_path_by_file_id(file_id)
+    candidates = []
+    if stored_path:
+        candidates.append(Path(stored_path))
+    candidates.append(UPLOAD_DIR / file_id)
+
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return candidate
+
+    content = get_upload_file_content_by_file_id(file_id)
+    if content is None:
+        missing_path = Path(stored_path) if stored_path else UPLOAD_DIR / file_id
+        raise FileNotFoundError(f"Upload file not found on disk or in DB: {missing_path}")
+
+    restore_path = Path(stored_path) if stored_path else UPLOAD_DIR / file_id
+    restore_path.parent.mkdir(parents=True, exist_ok=True)
+    restore_path.write_bytes(content)
+    return restore_path
 
 
 def save_upload(file: UploadFile) -> dict:

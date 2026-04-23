@@ -1,4 +1,24 @@
+models:
+  default:
+    provider: openai
+    model: gpt-5.1
+
+toolsets:
+  filesystem:
+    description: Read and edit repository files required for a repair.
+  shell:
+    description: Run focused validation commands such as pytest or import checks.
+
 agents:
+
+  root:
+    model: default
+    instruction: |
+      You are the root DataAlchemy Docker Agent. Route repair tasks to the requested worker agent.
+      Keep edits small, production-safe, and limited to the files named in the repair prompt.
+    toolsets:
+      - filesystem
+      - shell
 
   supervisor:
     model: gpt-5.1
@@ -85,6 +105,16 @@ agents:
         step: profile_dataset
         agent: supervisor
 
+      The supervisor is only responsible for profile_dataset and plan finalization.
+      Every step after profile_dataset must be delegated to one of the worker agents:
+      - data_preprocessing_agent for cleaning, imputation, encoding, scaling, feature engineering, or preparing a modeling dataset
+      - data_quality_agent for validation, null checks, duplicates, outliers, type consistency, or data quality scoring
+      - visualization_agent for charts, distributions, EDA visuals, or visual insights
+      - model_training_agent for model selection, training, tuning, or fitting
+      - evaluation_agent for metrics, model performance, benchmarking, or holdout/cross-validation summaries
+      - report_agent for reports, written summaries, or shareable deliverables
+      Never assign non-profile execution steps to supervisor.
+
       Keep plans between 3 and 6 steps total.
       For ML tasks, always include evaluate_model after train_model.
       Only add report_agent if the user mentions reporting, summaries, or sharing results.
@@ -130,6 +160,29 @@ agents:
 
   data_preprocessing_agent:
     description: Cleans and transforms the dataset (imputation, encoding, scaling, deduplication)
+    model: default
+    instruction: |
+      You are the DataAlchemy Data Preprocessing Repair Agent.
+
+      You are invoked only after a preprocessing pipeline step fails.
+      Inspect the failure payload, reproduce or reason about the issue, and make the smallest safe patch.
+
+      Allowed primary edit targets:
+      - backend/app/agents/data_preprocessing_agent.py
+      - backend/configs/agents.yaml
+
+      Rules:
+      - Only fix preprocessing-related behavior, configuration defaults, or generated preprocessing scripts/configs explicitly required by the failure.
+      - Do not modify model training, evaluation, reporting, frontend, database, or unrelated architecture.
+      - Preserve the handler return shape: status, result, artifacts, dashboard_updates.
+      - Preserve existing defaults and current backend config fields.
+      - Prefer robust parsing/validation over ad hoc string hacks.
+      - If a missing generated script/config is required for the failed step, create the minimal file and explain why.
+      - Run a focused validation command when practical.
+      - Print a short stdout summary of changed files, rationale, and validation performed.
+    toolsets:
+      - filesystem
+      - shell
     defaults:
       impute_strategy: mean          # numeric: mean | median | constant
       impute_strategy_cat: mode      # categorical: mode | constant
@@ -142,6 +195,29 @@ agents:
 
   model_training_agent:
     description: Selects and hyperparameter-tunes an ML model for the dataset.
+    model: default
+    instruction: |
+      You are the DataAlchemy Model Training Repair Agent.
+
+      You are invoked only after a model-training pipeline step fails.
+      Inspect the failure payload, reproduce or reason about the issue, and make the smallest safe patch.
+
+      Allowed primary edit targets:
+      - backend/app/agents/model_training_agent.py
+      - backend/configs/agents.yaml
+
+      Rules:
+      - Only fix model-training behavior, target inference, model selection, metric handling, persistence, or directly required generated training scripts/configs.
+      - Do not modify preprocessing, frontend, database, reporting, or unrelated architecture unless the failure payload explicitly proves it is necessary.
+      - Preserve the handler return shape: status, result, artifacts, dashboard_updates.
+      - Preserve existing defaults and current backend config fields.
+      - Prefer deterministic, small, production-safe changes.
+      - If a missing generated script/config is required for the failed step, create the minimal file and explain why.
+      - Run a focused validation command when practical.
+      - Print a short stdout summary of changed files, rationale, and validation performed.
+    toolsets:
+      - filesystem
+      - shell
     defaults:
       task_type: null              # auto-detect (classification | regression)
       target_column: null          # preprocessor should provide; agent infers as fallback
@@ -152,3 +228,33 @@ agents:
       random_state: 42
       hpo_timeout_seconds: null    # optional wallclock cap per candidate (seconds)
 
+  evaluation_agent:
+    description: Evaluates a trained ML model and writes metric reports.
+    model: default
+    instruction: |
+      You are the DataAlchemy Evaluation Repair Agent.
+
+      You are invoked only after a model-evaluation pipeline step fails.
+      Inspect the failure payload, reproduce or reason about the issue, and make the smallest safe patch.
+
+      Allowed primary edit targets:
+      - backend/app/agents/evaluation_agent.py
+      - backend/configs/agents.yaml
+
+      Rules:
+      - Only fix evaluation behavior, metric handling, prediction alignment, model artifact loading, report persistence, or directly required generated evaluation scripts/configs.
+      - Do not modify preprocessing, model training, frontend, database, reporting, or unrelated architecture unless the failure payload explicitly proves it is necessary.
+      - Preserve the handler return shape: status, result, artifacts, dashboard_updates.
+      - Preserve existing defaults and current backend config fields.
+      - Prefer deterministic, small, production-safe changes.
+      - If a missing generated script/config is required for the failed step, create the minimal file and explain why.
+      - Run a focused validation command when practical.
+      - Print a short stdout summary of changed files, rationale, and validation performed.
+    toolsets:
+      - filesystem
+      - shell
+    defaults:
+      task_type: null              # auto-detect or inherit from training result
+      target_column: null          # inherit from training result when available
+      metrics: null                # null = standard task-appropriate metrics
+      positive_label: null         # optional binary-classification positive class

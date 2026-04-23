@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import asyncio
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -85,6 +86,40 @@ def reg_schema() -> dict[str, Any]:
             {"name": "x2", "inferred_dtype": "float", "unique_count": 200, "non_null_count": 200, "null_ratio": 0.0},
             {"name": "x3", "inferred_dtype": "float", "unique_count": 200, "non_null_count": 200, "null_ratio": 0.0},
             {"name": "price", "inferred_dtype": "float", "unique_count": 200, "non_null_count": 200, "null_ratio": 0.0},
+        ],
+    }
+
+
+@pytest.fixture
+def tiny_iris_csv(tmp_path: Path) -> Path:
+    path = tmp_path / "preprocessed_tiny_iris.csv"
+    path.write_text(
+        "\n".join(
+            [
+                "sepal_length,sepal_width,petal_length,petal_width,species",
+                "5.1,3.5,1.4,0.2,setosa",
+                "4.9,3.0,1.4,0.2,setosa",
+                "6.2,3.4,5.4,2.3,virginica",
+                "5.9,3.0,5.1,1.8,virginica",
+                "6.0,2.2,4.0,1.0,versicolor",
+                "5.5,2.3,4.0,1.3,versicolor",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.fixture
+def tiny_iris_schema() -> dict[str, Any]:
+    return {
+        "rows_sampled": 6,
+        "columns": [
+            {"name": "sepal_length", "inferred_dtype": "float", "unique_count": 6, "non_null_count": 6, "null_ratio": 0.0},
+            {"name": "sepal_width", "inferred_dtype": "float", "unique_count": 5, "non_null_count": 6, "null_ratio": 0.0},
+            {"name": "petal_length", "inferred_dtype": "float", "unique_count": 4, "non_null_count": 6, "null_ratio": 0.0},
+            {"name": "petal_width", "inferred_dtype": "float", "unique_count": 6, "non_null_count": 6, "null_ratio": 0.0},
+            {"name": "species", "inferred_dtype": "string", "unique_count": 3, "non_null_count": 6, "null_ratio": 0.0},
         ],
     }
 
@@ -505,6 +540,37 @@ class TestModelTrainingHandlerIntegration:
         loaded = joblib.load(model_path)
         preds = loaded.predict(pd.DataFrame({"f1": [0.1], "f2": [0.2], "f3": [0.3], "f4": [0.4]}))
         assert preds[0] in {0, 1}
+
+    def test_tiny_multiclass_dataset_caps_cv_folds(
+        self, tmp_path: Path, tiny_iris_csv: Path, tiny_iris_schema: dict
+    ):
+        from app.agents.model_training_agent import model_training_handler
+
+        payload = {
+            "dataset_id": "tiny_iris.csv",
+            "step": "train_classification_model",
+            "agent": "model_training_agent",
+            "config": {"n_trials": 1},
+            "prior_results": [
+                {
+                    "agent": "data_preprocessing_agent",
+                    "result": {"preprocessed_file_id": tiny_iris_csv.name},
+                }
+            ],
+        }
+
+        with (
+            patch("app.agents.model_training_agent.get_upload_schema_by_file_id", return_value=tiny_iris_schema),
+            patch("app.agents.model_training_agent.get_agent_config", return_value={"defaults": {}}),
+            patch("app.agents.model_training_agent.UPLOAD_DIR", tmp_path),
+        ):
+            result = asyncio.run(model_training_handler(payload))
+
+        assert result["status"] == "success", result.get("result", {}).get("error")
+        assert result["result"]["target_column"] == "species"
+        assert result["result"]["task_type"] == "classification"
+        assert result["result"]["cv_folds"] == 2
+        assert result["result"]["n_samples"] == 6
 
     @pytest.mark.asyncio
     async def test_fails_when_dataset_not_found(self, tmp_path: Path, clf_schema: dict):

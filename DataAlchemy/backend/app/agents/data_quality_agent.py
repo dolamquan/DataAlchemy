@@ -20,9 +20,11 @@ from pathlib import Path
 from statistics import mean, stdev
 from typing import Any
 
-from app.db.models import get_upload_schema_by_file_id, get_upload_stored_path_by_file_id
+from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.db.models import get_upload_schema_by_file_id
 from app.engine.registry import get_agent_config
 from app.services.schema_profiler import is_null_like, normalize_value, safe_open_csv
+from app.services.storage import resolve_upload_path_from_db
 
 
 # ---------------------------------------------------------------------------
@@ -440,19 +442,11 @@ async def data_quality_handler(payload: dict[str, Any]) -> dict[str, Any]:
     dataset_id: str = payload.get("dataset_id", "")
     cfg = _resolve_config(payload.get("config") or {})
 
-    # --- locate file on disk ---
-    stored_path = get_upload_stored_path_by_file_id(dataset_id)
-    if stored_path is None:
-        return _failed(step, f"Dataset '{dataset_id}' not found in database.")
-
-    if not Path(stored_path).exists():
-        # fall back: try UPLOAD_DIR / dataset_id (file_id is stored filename)
-        from app.core.settings import UPLOAD_DIR
-        alt = UPLOAD_DIR / dataset_id
-        if alt.exists():
-            stored_path = str(alt)
-        else:
-            return _failed(step, f"File not found on disk: {stored_path}")
+    # --- locate file, restoring from DB content if the upload file was removed ---
+    try:
+        stored_path = str(resolve_upload_path_from_db(dataset_id))
+    except FileNotFoundError as exc:
+        return _failed(step, str(exc))
 
     # --- load schema profile ---
     schema_profile = get_upload_schema_by_file_id(dataset_id)
@@ -509,6 +503,8 @@ async def data_quality_handler(payload: dict[str, Any]) -> dict[str, Any]:
         "checks": checks,
         "recommendations": recommendations,
     }
+    report_file_id = safe_artifact_file_id("quality_report", dataset_id, ".json")
+    report_path = write_json_artifact(report_file_id, result_data)
 
     return {
         "status": "success",
@@ -517,7 +513,8 @@ async def data_quality_handler(payload: dict[str, Any]) -> dict[str, Any]:
             {
                 "name": "quality_report.json",
                 "type": "json",
-                "data": result_data,
+                "path": str(report_path),
+                "file_id": report_file_id,
             }
         ],
         "dashboard_updates": [

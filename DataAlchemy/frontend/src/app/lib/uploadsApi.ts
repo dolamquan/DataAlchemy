@@ -5,6 +5,8 @@ export interface RecentUploadItem {
   original_filename: string;
   file_size_bytes: number;
   created_at: string;
+  is_available?: boolean;
+  storage_source?: "db" | "disk" | "missing";
 }
 
 export interface NumericStats {
@@ -139,9 +141,46 @@ export interface CoordinatorExecution {
   dashboard_updates: CoordinatorDashboardUpdate[];
 }
 
+export interface AgentRuntimeEvent {
+  session_id: string;
+  timestamp: string;
+  type:
+    | "coordinator_started"
+    | "repair_started"
+    | "repair_succeeded"
+    | "repair_failed"
+    | "step_started"
+    | "step_retried"
+    | "step_completed"
+    | "step_failed"
+    | "coordinator_completed"
+    | "coordinator_failed";
+  agent?: string;
+  step?: string;
+  status?: string;
+  message?: string;
+  plan?: ProjectPlanResponse;
+  result?: unknown;
+  artifacts?: Array<Record<string, unknown>>;
+  dashboard_updates?: CoordinatorDashboardUpdate[];
+  completed_steps?: string[];
+}
+
 async function parseJsonOrThrow<T>(response: Response, context: string): Promise<T> {
   if (!response.ok) {
-    const detail = await response.text().catch(() => "");
+    let detail = await response.text().catch(() => "");
+
+    if (detail) {
+      try {
+        const payload = JSON.parse(detail) as { detail?: unknown };
+        if (typeof payload.detail === "string") {
+          detail = payload.detail;
+        }
+      } catch {
+        // Keep the plain response body if it is not JSON.
+      }
+    }
+
     throw new Error(`${context} failed (${response.status})${detail ? `: ${detail}` : ""}`);
   }
   return response.json() as Promise<T>;
@@ -209,11 +248,12 @@ export function artifactDownloadUrl(fileId: string): string {
 export async function sendSupervisorMessage(
   sessionId: string,
   userMessage: string,
+  datasetId?: string,
 ): Promise<SupervisorResponse> {
   const response = await fetch(`${API_BASE_URL}/api/supervisor/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, user_message: userMessage }),
+    body: JSON.stringify({ session_id: sessionId, user_message: userMessage, dataset_id: datasetId }),
   });
   return parseJsonOrThrow<SupervisorResponse>(response, "Send supervisor message");
 }

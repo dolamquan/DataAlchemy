@@ -42,6 +42,7 @@ class SupervisorStartRequest(BaseModel):
 class SupervisorMessageRequest(BaseModel):
 	session_id: str = Field(..., min_length=1, max_length=128)
 	user_message: str = Field(..., min_length=1, max_length=4000)
+	dataset_id: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class SupervisorResponse(BaseModel):

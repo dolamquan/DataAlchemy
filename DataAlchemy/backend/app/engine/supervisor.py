@@ -3,16 +3,36 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from typing import Any
 
 from fastapi import HTTPException
 
 from app.db.models import get_upload_record_by_file_id, get_upload_schema_by_file_id
+from app.core.settings import UPLOAD_DIR
 from app.engine.coordinator import Coordinator
 from app.engine.llm_client import call_supervisor_llm
 from app.engine.registry import get_agent_config
 from app.engine.schemas import PlanStep, ProjectPlanResponse, SupervisorResponse
+
+_WEEK_COLUMN_RE = re.compile(r"^week_(\d+)$", re.IGNORECASE)
+_TARGET_NAMES = {
+    "target",
+    "label",
+    "y",
+    "class",
+    "churn",
+    "exited",
+    "fraud",
+    "price",
+    "outcome",
+    "survived",
+    "default",
+    "result",
+    "score",
+    "final_score",
+}
 
 
 # ========== Session Store ==========
@@ -151,11 +171,18 @@ async def start_session(*, dataset_id: str, user_message: str) -> SupervisorResp
     return response
 
 
-async def send_message(*, session_id: str, user_message: str) -> SupervisorResponse:
+async def send_message(
+    *,
+    session_id: str,
+    user_message: str,
+    dataset_id: str | None = None,
+) -> SupervisorResponse:
     """Send a user message in an existing session, get back revised plan or final plan."""
 
     session = _sessions.get(session_id)
     if session is None:
+        if dataset_id:
+            return await start_session(dataset_id=dataset_id, user_message=user_message)
         raise HTTPException(status_code=404, detail="Session not found")
     if session["finished"]:
         raise HTTPException(status_code=400, detail="Session already has a finalized plan")
@@ -226,7 +253,7 @@ async def _process_result(
     if result["tool"] == "finalize_plan":
         plan = _build_plan_response(dataset_id, result["input"])
         coordinator = Coordinator()
-        execution = await coordinator.execute_plan(plan=plan, dataset_id=dataset_id)
+        execution = await coordinator.execute_plan(plan=plan, dataset_id=dataset_id, session_id=session_id)
         return SupervisorResponse(
             session_id=session_id,
             type="final",
@@ -243,12 +270,18 @@ def _build_plan_response(
     tool_input: dict[str, Any],
 ) -> ProjectPlanResponse:
     """Validate and convert the LLM's function output into a ProjectPlanResponse."""
+    target_column = _infer_plan_target_column(dataset_id, tool_input["user_goal"])
     steps = [
         PlanStep(
             step=s["step"],
-            agent=s["agent"],
+            agent=_normalize_step_agent(s["step"], s.get("agent"), tool_input["user_goal"]),
             status="pending",
-            config=s.get("config"),
+            config=_normalize_step_config(
+                s.get("config"),
+                _normalize_step_agent(s["step"], s.get("agent"), tool_input["user_goal"]),
+                tool_input["user_goal"],
+                target_column,
+            ),
         )
         for s in tool_input["steps"]
     ]
@@ -259,3 +292,141 @@ def _build_plan_response(
         summary=tool_input["summary"],
         plan=steps,
     )
+
+
+def _normalize_step_agent(step_name: str, proposed_agent: Any, user_goal: str) -> str:
+    """Keep the supervisor as planner only, then delegate execution steps."""
+    normalized_step = step_name.lower()
+    proposed = proposed_agent if isinstance(proposed_agent, str) else ""
+
+    if normalized_step == "profile_dataset":
+        return "supervisor"
+
+    if proposed and proposed != "supervisor":
+        return proposed
+
+    if any(token in normalized_step for token in ("quality", "validate", "validation", "outlier", "duplicate", "null")):
+        return "data_quality_agent"
+
+    if any(
+        token in normalized_step
+        for token in ("preprocess", "prepare", "clean", "impute", "encode", "scale", "feature")
+    ):
+        return "data_preprocessing_agent"
+
+    if any(token in normalized_step for token in ("evaluate", "metric", "score", "performance", "benchmark")):
+        return "evaluation_agent"
+
+    if any(token in normalized_step for token in ("train", "model", "fit", "predict")):
+        return "model_training_agent"
+
+    if any(token in normalized_step for token in ("visual", "chart", "plot", "eda", "distribution")):
+        return "visualization_agent"
+
+    if any(token in normalized_step for token in ("report", "summary", "explain", "share")):
+        return "report_agent"
+
+    if user_goal in {"train_model", "preprocess_and_train", "full_pipeline"}:
+        return "data_preprocessing_agent"
+
+    if user_goal == "visualize_data":
+        return "visualization_agent"
+
+    if user_goal == "schema_analysis":
+        return "data_quality_agent"
+
+    return "data_preprocessing_agent"
+
+
+def _normalize_step_config(
+    proposed_config: Any,
+    agent_name: str,
+    user_goal: str,
+    inferred_target_column: str | None,
+) -> dict[str, Any] | None:
+    config = dict(proposed_config) if isinstance(proposed_config, dict) else {}
+    ml_goal = user_goal in {"train_model", "preprocess_and_train", "full_pipeline", "evaluate_model"}
+    target_aware_agents = {
+        "data_preprocessing_agent",
+        "data_quality_agent",
+        "model_training_agent",
+        "evaluation_agent",
+    }
+
+    if ml_goal and inferred_target_column and agent_name in target_aware_agents:
+        config.setdefault("target_column", inferred_target_column)
+
+    return config or None
+
+
+def _infer_plan_target_column(dataset_id: str, user_goal: str) -> str | None:
+    if user_goal not in {"train_model", "preprocess_and_train", "full_pipeline", "evaluate_model"}:
+        return None
+
+    schema_profile = get_upload_schema_by_file_id(dataset_id)
+    if not schema_profile:
+        return _infer_target_from_file_header(dataset_id)
+
+    columns = schema_profile.get("columns", [])
+    names = [str(col.get("name", "")) for col in columns if col.get("name")]
+
+    lower_to_name = {name.lower(): name for name in names}
+    for target_name in _TARGET_NAMES:
+        if target_name in lower_to_name:
+            return lower_to_name[target_name]
+
+    week_columns = [
+        (int(match.group(1)), name)
+        for name in names
+        if (match := _WEEK_COLUMN_RE.match(name))
+    ]
+    if week_columns:
+        return max(week_columns)[1]
+
+    for col in columns:
+        name = str(col.get("name", ""))
+        dtype = str(col.get("inferred_dtype", ""))
+        unique = col.get("unique_count", 0)
+        if dtype in {"integer", "float"} and unique == 2:
+            return name
+
+    for col in columns:
+        name = str(col.get("name", ""))
+        dtype = str(col.get("inferred_dtype", ""))
+        unique = col.get("unique_count", 0)
+        non_null = col.get("non_null_count", 0)
+        if dtype in {"integer", "categorical", "string"} and 2 <= unique <= 10 and non_null > 0:
+            return name
+
+    return None
+
+
+def _infer_target_from_file_header(dataset_id: str) -> str | None:
+    candidates = [
+        UPLOAD_DIR / dataset_id,
+        UPLOAD_DIR / f"{dataset_id}.csv",
+    ]
+
+    for path in candidates:
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            first_line = path.read_text(encoding="utf-8-sig").splitlines()[0]
+        except (OSError, IndexError, UnicodeDecodeError):
+            continue
+
+        names = [name.strip() for name in first_line.split(",") if name.strip()]
+        lower_to_name = {name.lower(): name for name in names}
+        for target_name in _TARGET_NAMES:
+            if target_name in lower_to_name:
+                return lower_to_name[target_name]
+
+        week_columns = [
+            (int(match.group(1)), name)
+            for name in names
+            if (match := _WEEK_COLUMN_RE.match(name))
+        ]
+        if week_columns:
+            return max(week_columns)[1]
+
+    return None

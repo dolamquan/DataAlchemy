@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -15,7 +16,9 @@ CORS_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
-import os
+def _env_value(name: str, default: str = "") -> str:
+    return os.environ.get(name, default).strip()
 
-OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL: str = os.environ.get("OPENAI_MODEL", "gpt-4o")
+
+OPENAI_API_KEY: str = _env_value("OPENAI_API_KEY")
+OPENAI_MODEL: str = _env_value("OPENAI_MODEL", "gpt-4o") or "gpt-4o"

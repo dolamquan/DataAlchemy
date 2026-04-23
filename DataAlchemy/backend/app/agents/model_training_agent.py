@@ -16,6 +16,7 @@ and its path is returned in the artifacts list.
 
 from __future__ import annotations
 
+import re
 import time
 import traceback
 from pathlib import Path
@@ -37,8 +38,10 @@ from lightgbm import LGBMClassifier, LGBMRegressor
 from xgboost import XGBClassifier, XGBRegressor
 
 from app.core.settings import UPLOAD_DIR
-from app.db.models import get_upload_schema_by_file_id, get_upload_stored_path_by_file_id
+from app.db.models import get_upload_schema_by_file_id
 from app.engine.registry import get_agent_config
+from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.storage import resolve_upload_path_from_db
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -49,7 +52,10 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 _TARGET_NAMES: frozenset[str] = frozenset({
     "target", "label", "y", "class", "churn", "exited",
     "fraud", "price", "outcome", "survived", "default",
+    "result", "score", "final_score",
 })
+
+_WEEK_COLUMN_RE = re.compile(r"^week_(\d+)$", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -112,15 +118,11 @@ def _locate_training_csv(dataset_id: str, prior_results: list[dict[str, Any]]) -
     if convention.exists():
         return convention
 
-    # 3. DB stored path 
-    stored_path = get_upload_stored_path_by_file_id(dataset_id)
-    if stored_path and Path(stored_path).exists():
-        return Path(stored_path)
-
-    # 4. Direct fallback (UPLOAD_DIR/dataset_id)
-    alt = UPLOAD_DIR / dataset_id
-    if alt.exists():
-        return alt
+    # 3. DB stored path, restoring original upload bytes if disk copy was removed
+    try:
+        return resolve_upload_path_from_db(dataset_id)
+    except FileNotFoundError:
+        pass
 
     raise ValueError(
         f"Cannot locate training CSV for dataset '{dataset_id}'. "
@@ -140,7 +142,7 @@ def _read_csv(path: str) -> pd.DataFrame:
 # Target inference
 # ---------------------------------------------------------------------------
 
-def _infer_target_column(df: pd.DataFrame, schema_profile: dict[str, Any]) -> str:
+def _infer_target_column(df: pd.DataFrame, schema_profile: dict[str, Any] | None) -> str:
     """Infer the most likely target column from the schema profile.
 
     Priority:
@@ -149,12 +151,20 @@ def _infer_target_column(df: pd.DataFrame, schema_profile: dict[str, Any]) -> st
       3. Low-cardinality integer/categorical column (2 <= unique_count <= 10)
     """
     df_cols: set[str] = set(df.columns)
-    columns: list[dict[str, Any]] = schema_profile.get("columns", [])
+    columns: list[dict[str, Any]] = (schema_profile or {}).get("columns", [])
 
     # 1. Named match (check DataFrame columns directly first, then schema)
     for name in _TARGET_NAMES:
         if name in df_cols:
             return name
+
+    week_columns = [
+        (int(match.group(1)), column)
+        for column in df.columns
+        if (match := _WEEK_COLUMN_RE.match(str(column)))
+    ]
+    if week_columns:
+        return max(week_columns)[1]
 
     # 2. Binary integer column
     for col in columns:
@@ -258,6 +268,8 @@ def _select_candidate_models(task_type: str, n_samples: int, n_features: int) ->
 
 def _scale_n_trials(n_samples: int) -> int:
     """Return number of Optuna trials scaled to dataset size."""
+    if n_samples < 20:
+        return 5
     if n_samples < 1_000:
         return 50
     if n_samples < 10_000:
@@ -275,6 +287,28 @@ def _build_cv(task_type: str, n_splits: int = 5):
     if task_type == "classification":
         return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     return KFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+
+def _resolve_cv_folds(task_type: str, y: pd.Series, requested_folds: int) -> int:
+    """Cap CV folds to the number of splits the target distribution supports."""
+    requested_folds = max(2, requested_folds)
+    if task_type == "classification":
+        class_counts = y.value_counts(dropna=False)
+        if len(class_counts) < 2:
+            raise ValueError("Classification requires at least 2 target classes.")
+
+        min_class_count = int(class_counts.min())
+        if min_class_count < 2:
+            rare_classes = sorted(str(label) for label, count in class_counts.items() if count < 2)
+            raise ValueError(
+                "Classification requires at least 2 examples per class for cross-validation. "
+                f"Classes with too few examples: {rare_classes}."
+            )
+        return min(requested_folds, min_class_count)
+
+    if len(y) < 2:
+        raise ValueError("Regression requires at least 2 rows for cross-validation.")
+    return min(requested_folds, len(y))
 
 
 # ---------------------------------------------------------------------------
@@ -466,9 +500,6 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
     n_samples, n_features = X.shape
 
-    if n_samples < 10:
-        return _failed(step, f"Too few rows ({n_samples}) to train a model reliably.")
-
     # --- detect task type and metric ---
     task_type: str = _detect_task_type(y, cfg.get("task_type"))
     metric: str = cfg.get("metric") or _pick_metric(task_type, y)
@@ -480,7 +511,10 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
     # --- build CV ---
-    cv_folds = max(2, int(cfg.get("cv_folds") or 5))
+    try:
+        cv_folds = _resolve_cv_folds(task_type, y, int(cfg.get("cv_folds") or 5))
+    except ValueError as exc:
+        return _failed(step, str(exc))
     cv = _build_cv(task_type, cv_folds)
 
     # --- HPO budget ---
@@ -549,6 +583,7 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
         "n_samples": n_samples,
         "n_features": n_features,
         "metric": metric,
+        "cv_folds": cv_folds,
         "chosen_model": best_model_name,
         "best_params": best_params,
         "cv_score": round(best_score, 6),
@@ -556,6 +591,8 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
         "model_file_id": model_file_id,
         "training_time_seconds": training_time,
     }
+    report_file_id = safe_artifact_file_id("training_report", dataset_id, ".json")
+    report_path = write_json_artifact(report_file_id, result_data)
 
     return {
         "status": "success",
@@ -570,7 +607,8 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
             {
                 "name": "training_report.json",
                 "type": "json",
-                "data": result_data,
+                "path": str(report_path),
+                "file_id": report_file_id,
             },
         ],
         "dashboard_updates": [

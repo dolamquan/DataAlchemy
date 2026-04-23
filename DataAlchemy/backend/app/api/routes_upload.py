@@ -10,8 +10,11 @@ router = APIRouter(prefix="/api", tags=["upload"])
 
 
 @router.get("/uploads/recent")
-def recent_uploads(limit: int = Query(default=50, ge=1, le=100)):
-    return {"items": list_recent_upload_records(limit=limit)}
+def recent_uploads(
+    limit: int = Query(default=50, ge=1, le=100),
+    available_only: bool = Query(default=True),
+):
+    return {"items": list_recent_upload_records(limit=limit, available_only=available_only)}
 
 
 @router.get("/uploads/{file_id}/schema")
@@ -66,6 +69,7 @@ async def upload_csv(file: UploadFile = File(...)):
             stored_path=saved["path"],
             file_size_bytes=saved["size"],
             schema_profile=schema_profile,
+            file_content=UPLOAD_DIR.joinpath(saved["stored_name"]).read_bytes(),
         )
 
         return {

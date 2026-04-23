@@ -25,9 +25,11 @@ from statistics import mean, median, stdev
 from typing import Any
 
 from app.core.settings import UPLOAD_DIR
-from app.db.models import get_upload_schema_by_file_id, get_upload_stored_path_by_file_id
+from app.db.models import get_upload_schema_by_file_id
 from app.engine.registry import get_agent_config
+from app.services.artifacts import safe_artifact_file_id, write_json_artifact
 from app.services.schema_profiler import is_null_like, normalize_value, safe_open_csv
+from app.services.storage import resolve_upload_path_from_db
 
 
 # ---------------------------------------------------------------------------
@@ -445,22 +447,11 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
     dataset_id: str = payload.get("dataset_id", "")
     cfg = _resolve_config(payload.get("config") or {})
 
-    # --- locate file on disk ---
-    stored_path = get_upload_stored_path_by_file_id(dataset_id)
-    if stored_path is None:
-        # Fall back: treat dataset_id as the stored filename directly
-        alt = UPLOAD_DIR / dataset_id
-        if alt.exists():
-            stored_path = str(alt)
-        else:
-            return _failed(step, f"Dataset '{dataset_id}' not found in database.")
-
-    if not Path(stored_path).exists():
-        alt = UPLOAD_DIR / dataset_id
-        if alt.exists():
-            stored_path = str(alt)
-        else:
-            return _failed(step, f"File not found on disk: {stored_path}")
+    # --- locate file, restoring from DB content if the upload file was removed ---
+    try:
+        stored_path = str(resolve_upload_path_from_db(dataset_id))
+    except FileNotFoundError as exc:
+        return _failed(step, str(exc))
 
     # --- load schema profile ---
     schema_profile = get_upload_schema_by_file_id(dataset_id)
@@ -573,6 +564,9 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
     if target_info:
         result_data["target_summary"] = target_info
 
+    log_file_id = safe_artifact_file_id("preprocessing_log", dataset_id, ".json")
+    log_path = write_json_artifact(log_file_id, preprocessing_log)
+
     return {
         "status": "success",
         "result": result_data,
@@ -586,7 +580,8 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
             {
                 "name": "preprocessing_log.json",
                 "type": "json",
-                "data": preprocessing_log,
+                "path": str(log_path),
+                "file_id": log_file_id,
             },
         ],
         "dashboard_updates": [

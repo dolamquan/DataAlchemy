@@ -1,0 +1,28 @@
+{
+  "task_type": "classification",
+  "target_column": "species",
+  "target_inferred": false,
+  "n_samples": 6,
+  "n_features": 4,
+  "metric": "f1_macro",
+  "cv_folds": 2,
+  "chosen_model": "LogisticRegression",
+  "best_params": {
+    "C": 0.0745934328572655
+  },
+  "cv_score": 1.0,
+  "candidates_evaluated": [
+    {
+      "model": "LogisticRegression",
+      "cv_score": 1.0,
+      "n_trials": 5
+    },
+    {
+      "model": "RandomForestClassifier",
+      "cv_score": 1.0,
+      "n_trials": 5
+    }
+  ],
+  "model_file_id": "model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib",
+  "training_time_seconds": 2.18
+}
