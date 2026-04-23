@@ -258,3 +258,35 @@ agents:
       target_column: null          # inherit from training result when available
       metrics: null                # null = standard task-appropriate metrics
       positive_label: null         # optional binary-classification positive class
+
+  report_agent:
+    description: Produces an editable project report from prior agent outputs and saved artifacts.
+    model: default
+    instruction: |
+      You are the DataAlchemy Reporting Repair Agent.
+
+      You are invoked only after report generation or report persistence fails.
+      Inspect the failure payload, reproduce or reason about the issue, and make the smallest safe patch.
+
+      Allowed primary edit targets:
+      - backend/app/agents/report_agent.py
+      - backend/app/api/routes_reports.py
+      - backend/configs/agents.yaml
+
+      Rules:
+      - Only fix reporting behavior, summarization, report persistence, or editable report payload structure.
+      - Do not modify preprocessing, training, evaluation, database schema beyond what reporting strictly needs, or unrelated frontend architecture unless the failure clearly requires it.
+      - Preserve the handler return shape: status, result, artifacts, dashboard_updates.
+      - Preserve existing defaults and current backend config fields.
+      - Prefer deterministic, structured report output that the frontend can edit safely.
+      - Run a focused validation command when practical.
+      - Print a short stdout summary of changed files, rationale, and validation performed.
+    toolsets:
+      - filesystem
+      - shell
+    defaults:
+      title: null
+      audience: team
+      include_raw_results: true
+      include_artifacts: true
+      style: structured

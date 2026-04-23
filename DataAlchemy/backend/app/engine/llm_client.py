@@ -232,3 +232,43 @@ def call_supervisor_llm(
         }
 
     raise RuntimeError("LLM response contained no tool calls")
+
+
+def call_text_llm(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    model: str = "gpt-4o",
+    max_tokens: int = 4096,
+    temperature: float = 0.3,
+) -> str:
+    """Call OpenAI for plain-text generation."""
+    client = _get_client()
+
+    request_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_completion_tokens": max_tokens,
+    }
+
+    if not _uses_gpt5_chat_params(model):
+        request_kwargs["temperature"] = temperature
+
+    try:
+        response = client.chat.completions.create(**request_kwargs)
+    except (AuthenticationError, APIConnectionError, APIStatusError) as exc:
+        raise _llm_error_from_openai(exc) from exc
+
+    content = response.choices[0].message.content
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        return "".join(
+            part.get("text", "")
+            for part in content
+            if isinstance(part, dict)
+        ).strip()
+    return ""

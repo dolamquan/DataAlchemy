@@ -141,6 +141,36 @@ export interface CoordinatorExecution {
   dashboard_updates: CoordinatorDashboardUpdate[];
 }
 
+export interface ReportSection {
+  title: string;
+  summary: string;
+  bullets: string[];
+  data: Record<string, unknown>;
+}
+
+export interface ReportDocument {
+  dataset_id: string;
+  title: string;
+  audience?: string;
+  style?: string;
+  tone?: string;
+  generated_at?: string;
+  executive_summary: string;
+  next_steps: string[];
+  draft_markdown: string;
+  sections: ReportSection[];
+  artifacts: Array<Record<string, unknown>>;
+  assistant_context?: Record<string, unknown>;
+}
+
+export interface SavedReportRecord {
+  dataset_id: string;
+  file_id: string;
+  content: ReportDocument;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AgentRuntimeEvent {
   session_id: string;
   timestamp: string;
@@ -256,4 +286,69 @@ export async function sendSupervisorMessage(
     body: JSON.stringify({ session_id: sessionId, user_message: userMessage, dataset_id: datasetId }),
   });
   return parseJsonOrThrow<SupervisorResponse>(response, "Send supervisor message");
+}
+
+export async function fetchSavedReport(datasetId: string): Promise<SavedReportRecord | null> {
+  const response = await fetch(`${API_BASE_URL}/api/reports/${encodeURIComponent(datasetId)}`);
+  if (response.status === 404) {
+    return null;
+  }
+  return parseJsonOrThrow<SavedReportRecord>(response, "Fetch report");
+}
+
+export async function generateReport(
+  datasetId: string,
+  priorResults: CoordinatorExecutionResult[],
+  config?: Record<string, unknown>,
+): Promise<{ result: ReportDocument; artifacts: Array<Record<string, unknown>> }> {
+  const response = await fetch(`${API_BASE_URL}/api/reports/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      dataset_id: datasetId,
+      prior_results: priorResults,
+      config: config ?? {},
+    }),
+  });
+  return parseJsonOrThrow<{ result: ReportDocument; artifacts: Array<Record<string, unknown>> }>(
+    response,
+    "Generate report",
+  );
+}
+
+export async function saveReport(datasetId: string, content: ReportDocument): Promise<SavedReportRecord> {
+  const response = await fetch(`${API_BASE_URL}/api/reports/${encodeURIComponent(datasetId)}/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  const payload = await parseJsonOrThrow<{ dataset_id: string; file_id: string; content: ReportDocument }>(
+    response,
+    "Save report",
+  );
+  return {
+    dataset_id: payload.dataset_id,
+    file_id: payload.file_id,
+    content: payload.content,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export async function assistWithReport(
+  datasetId: string,
+  message: string,
+  currentDraft: string,
+): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/reports/assist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      dataset_id: datasetId,
+      message,
+      current_draft: currentDraft,
+    }),
+  });
+  const payload = await parseJsonOrThrow<{ reply: string }>(response, "Assist with report");
+  return payload.reply;
 }

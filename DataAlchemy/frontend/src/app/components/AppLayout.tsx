@@ -20,7 +20,7 @@ const navigation = [
   { name: "Schema Profile", href: "/app/schema", icon: FileText, comingSoon: false },
   { name: "Projects", href: "/app/projects", icon: FolderKanban, comingSoon: false },
   { name: "Agents", href: "/app/agents", icon: Bot, comingSoon: false },
-  { name: "Reports", href: "/app/reports", icon: BarChart3, comingSoon: true },
+  { name: "Reports", href: "/app/reports", icon: BarChart3, comingSoon: false },
   { name: "Power BI Exports", href: "/app/powerbi", icon: FileSpreadsheet, comingSoon: true },
   { name: "Admin", href: "/app/admin", icon: Shield, comingSoon: false },
   { name: "Settings", href: "/app/settings", icon: Settings, comingSoon: true },

@@ -1,0 +1,132 @@
+{
+  "dataset_id": "demo.csv",
+  "title": "Analysis Report for demo.csv",
+  "audience": "team",
+  "style": "structured",
+  "tone": "technical",
+  "generated_at": "2026-04-23T19:50:21.289271+00:00",
+  "executive_summary": "This report captures the latest available dataset, training, and evaluation details.",
+  "next_steps": [
+    "Review the evaluation metrics and compare them to the project objective.",
+    "Investigate the highest-impact quality issues before operational use.",
+    "Revise the report draft with domain conclusions, caveats, and stakeholder recommendations."
+  ],
+  "draft_markdown": "# Analysis Report for demo.csv\n\n## Executive Summary\nThis report captures the latest available dataset, training, and evaluation details.\n\n## Dataset Overview\nDataset contains 0 column(s) with 0 column(s) containing nulls.\n\n- Dataset ID: demo.csv\n- Rows sampled: 0\n- Numeric columns: 0\n- Categorical columns: 0\n\n## Data Quality\nData quality validation was not run in this session.\n\n## Preprocessing\nPreprocessing did not run before this report was generated.\n\n## Model Training\nModel training results were not available.\n\n## Evaluation\nEvaluation results were not available.\n\n## Recommendations\n- Review the evaluation metrics and compare them to the project objective.\n- Investigate the highest-impact quality issues before operational use.\n- Revise the report draft with domain conclusions, caveats, and stakeholder recommendations.",
+  "sections": [
+    {
+      "title": "Dataset Overview",
+      "summary": "Dataset contains 0 column(s) with 0 column(s) containing nulls.",
+      "bullets": [
+        "Dataset ID: demo.csv",
+        "Rows sampled: 0",
+        "Numeric columns: 0",
+        "Categorical columns: 0"
+      ],
+      "data": {
+        "dataset_id": "demo.csv",
+        "file_name": "demo.csv",
+        "created_at": null,
+        "file_size_bytes": null,
+        "rows_sampled": null,
+        "total_columns": null,
+        "numeric_columns": 0,
+        "categorical_columns": 0,
+        "columns_with_missing_values": 0,
+        "columns": [],
+        "notes": []
+      }
+    },
+    {
+      "title": "Data Quality",
+      "summary": "Data quality validation was not run in this session.",
+      "bullets": [],
+      "data": {}
+    },
+    {
+      "title": "Preprocessing",
+      "summary": "Preprocessing did not run before this report was generated.",
+      "bullets": [],
+      "data": {}
+    },
+    {
+      "title": "Model Training",
+      "summary": "Model training results were not available.",
+      "bullets": [],
+      "data": {}
+    },
+    {
+      "title": "Evaluation",
+      "summary": "Evaluation results were not available.",
+      "bullets": [],
+      "data": {}
+    }
+  ],
+  "artifacts": [],
+  "assistant_context": {
+    "dataset_id": "demo.csv",
+    "dataset_overview": {
+      "dataset_id": "demo.csv",
+      "file_name": "demo.csv",
+      "created_at": null,
+      "file_size_bytes": null,
+      "rows_sampled": null,
+      "total_columns": null,
+      "numeric_columns": 0,
+      "categorical_columns": 0,
+      "columns_with_missing_values": 0,
+      "columns": [],
+      "notes": []
+    },
+    "sections": [
+      {
+        "title": "Dataset Overview",
+        "summary": "Dataset contains 0 column(s) with 0 column(s) containing nulls.",
+        "bullets": [
+          "Dataset ID: demo.csv",
+          "Rows sampled: 0",
+          "Numeric columns: 0",
+          "Categorical columns: 0"
+        ],
+        "data": {
+          "dataset_id": "demo.csv",
+          "file_name": "demo.csv",
+          "created_at": null,
+          "file_size_bytes": null,
+          "rows_sampled": null,
+          "total_columns": null,
+          "numeric_columns": 0,
+          "categorical_columns": 0,
+          "columns_with_missing_values": 0,
+          "columns": [],
+          "notes": []
+        }
+      },
+      {
+        "title": "Data Quality",
+        "summary": "Data quality validation was not run in this session.",
+        "bullets": [],
+        "data": {}
+      },
+      {
+        "title": "Preprocessing",
+        "summary": "Preprocessing did not run before this report was generated.",
+        "bullets": [],
+        "data": {}
+      },
+      {
+        "title": "Model Training",
+        "summary": "Model training results were not available.",
+        "bullets": [],
+        "data": {}
+      },
+      {
+        "title": "Evaluation",
+        "summary": "Evaluation results were not available.",
+        "bullets": [],
+        "data": {}
+      }
+    ],
+    "artifacts": [],
+    "prior_results": []
+  }
+}

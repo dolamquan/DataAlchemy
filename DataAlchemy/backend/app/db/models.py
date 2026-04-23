@@ -22,6 +22,18 @@ def init_upload_tables() -> None:
 			)
 			"""
 		)
+		conn.execute(
+			"""
+			CREATE TABLE IF NOT EXISTS reports (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				dataset_id TEXT NOT NULL UNIQUE,
+				file_id TEXT NOT NULL,
+				content_json TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL
+			)
+			"""
+		)
 		columns = {
 			row["name"]
 			for row in conn.execute("PRAGMA table_info(uploads)").fetchall()
@@ -198,3 +210,63 @@ def get_upload_file_content_by_file_id(file_id: str) -> bytes | None:
 
 	content = row["file_content"]
 	return bytes(content) if content is not None else None
+
+
+def save_report_record(
+	*,
+	dataset_id: str,
+	file_id: str,
+	content: dict[str, Any],
+) -> None:
+	init_upload_tables()
+	timestamp = datetime.now(timezone.utc).isoformat()
+	payload = json.dumps(content)
+
+	with get_connection() as conn:
+		conn.execute(
+			"""
+			INSERT INTO reports (
+				dataset_id,
+				file_id,
+				content_json,
+				created_at,
+				updated_at
+			) VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(dataset_id) DO UPDATE SET
+				file_id = excluded.file_id,
+				content_json = excluded.content_json,
+				updated_at = excluded.updated_at
+			""",
+			(
+				dataset_id,
+				file_id,
+				payload,
+				timestamp,
+				timestamp,
+			),
+		)
+		conn.commit()
+
+
+def get_report_record_by_dataset_id(dataset_id: str) -> dict[str, Any] | None:
+	init_upload_tables()
+	with get_connection() as conn:
+		row = conn.execute(
+			"""
+			SELECT dataset_id, file_id, content_json, created_at, updated_at
+			FROM reports
+			WHERE dataset_id = ?
+			""",
+			(dataset_id,),
+		).fetchone()
+
+	if row is None:
+		return None
+
+	return {
+		"dataset_id": row["dataset_id"],
+		"file_id": row["file_id"],
+		"content": json.loads(row["content_json"]),
+		"created_at": row["created_at"],
+		"updated_at": row["updated_at"],
+	}

@@ -17,6 +17,7 @@ _REAL_AGENT_MODULES: dict[str, tuple[str, str]] = {
     "data_preprocessing_agent": ("app.agents.data_preprocessing_agent", "data_preprocessing_handler"),
     "model_training_agent": ("app.agents.model_training_agent", "model_training_handler"),
     "evaluation_agent": ("app.agents.evaluation_agent", "evaluation_handler"),
+    "report_agent": ("app.agents.report_agent", "report_handler"),
 }
 
 
@@ -124,8 +125,10 @@ from app.agents.data_quality_agent import data_quality_handler  # noqa: E402
 from app.agents.data_preprocessing_agent import data_preprocessing_handler  # noqa: E402
 from app.agents.evaluation_agent import evaluation_handler  # noqa: E402
 from app.agents.model_training_agent import model_training_handler  # noqa: E402
+from app.agents.report_agent import report_handler  # noqa: E402
 
 register_agent_handler("data_quality_agent", data_quality_handler)
 register_agent_handler("data_preprocessing_agent", data_preprocessing_handler)
 register_agent_handler("model_training_agent", model_training_handler)
 register_agent_handler("evaluation_agent", evaluation_handler)
+register_agent_handler("report_agent", report_handler)

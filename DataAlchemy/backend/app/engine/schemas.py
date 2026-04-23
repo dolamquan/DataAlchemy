@@ -51,3 +51,19 @@ class SupervisorResponse(BaseModel):
 	message: str | None = None
 	plan: ProjectPlanResponse | None = None
 	execution: dict | None = None
+
+
+class ReportGenerateRequest(BaseModel):
+	dataset_id: str = Field(..., min_length=1, max_length=256)
+	prior_results: list[dict] = Field(default_factory=list)
+	config: dict | None = None
+
+
+class ReportSaveRequest(BaseModel):
+	content: dict
+
+
+class ReportAssistRequest(BaseModel):
+	dataset_id: str = Field(..., min_length=1, max_length=256)
+	message: str = Field(..., min_length=1, max_length=4000)
+	current_draft: str | None = Field(default=None, max_length=50000)

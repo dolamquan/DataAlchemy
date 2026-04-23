@@ -1,0 +1,253 @@
+{
+  "dataset_id": "a356ae9477b4410a90bede0da97ab1b6.csv",
+  "title": "Analysis Report for output (21).csv",
+  "audience": "team",
+  "style": "structured",
+  "generated_at": "2026-04-23T19:11:57.195560+00:00",
+  "executive_summary": "This report captures the latest available dataset, training, and evaluation details.",
+  "next_steps": [
+    "Review the evaluation metrics and compare them to the business goal.",
+    "Inspect flagged quality issues before deploying or sharing the model.",
+    "Edit this report to add domain-specific conclusions or stakeholder notes."
+  ],
+  "sections": [
+    {
+      "title": "Dataset Overview",
+      "summary": "Dataset contains 5 column(s) with 1 column(s) containing nulls.",
+      "bullets": [
+        "Dataset ID: a356ae9477b4410a90bede0da97ab1b6.csv",
+        "Rows sampled: 12",
+        "Numeric columns: 0",
+        "Categorical columns: 5"
+      ],
+      "data": {
+        "dataset_id": "a356ae9477b4410a90bede0da97ab1b6.csv",
+        "file_name": "output (21).csv",
+        "created_at": "2026-04-23T01:21:21.106097+00:00",
+        "file_size_bytes": 2933,
+        "rows_sampled": 12,
+        "total_columns": 5,
+        "numeric_columns": 0,
+        "categorical_columns": 5,
+        "columns_with_missing_values": 1,
+        "columns": [
+          {
+            "name": "Sourced Statement",
+            "inferred_dtype": "string",
+            "column_family": "categorical",
+            "non_null_count": 12,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 12,
+            "sample_values": [
+              "More than 930,000 travelers will funnel through SFO from Thursday through Tuesday, according to SFO spokesperson Doug Yakel.",
+              "That\u2019s 8.7% more than last year\u2019s Labor Day weekend.",
+              "This year\u2019s prediction is 97% of what the airport handled five years ago, Yakel said by email.",
+              "To make it on time, holiday travelers should arrive at the airport two hours before domestic flights and three hours before international ones, Yakel said.",
+              "A United Airlines spokesperson said the three-hour warning was issued by mistake: somehow the company posted a years-old notice to the Chicago-bound boarding pass."
+            ],
+            "numeric_stats": null,
+            "numeric_distribution": [],
+            "categorical_top_values": [
+              {
+                "value": "More than 930,000 travelers will funnel through SFO from Thursday through Tuesday, according to SFO spokesperson Doug Yakel.",
+                "count": 1
+              },
+              {
+                "value": "That\u2019s 8.7% more than last year\u2019s Labor Day weekend.",
+                "count": 1
+              },
+              {
+                "value": "This year\u2019s prediction is 97% of what the airport handled five years ago, Yakel said by email.",
+                "count": 1
+              },
+              {
+                "value": "To make it on time, holiday travelers should arrive at the airport two hours before domestic flights and three hours before international ones, Yakel said.",
+                "count": 1
+              },
+              {
+                "value": "A United Airlines spokesperson said the three-hour warning was issued by mistake: somehow the company posted a years-old notice to the Chicago-bound boarding pass.",
+                "count": 1
+              },
+              {
+                "value": "The spokesperson shared a corrected advisory that suggested passengers \u201carrive early to avoid delays,\u201d and to get a head start by checking bags from home and leaving luggage in the bag drop shortcut area at the airport.",
+                "count": 1
+              },
+              {
+                "value": "Yakel said SFO has not been advised of staffing woes for Thursday, which was expected to be the busiest day of travel at the airport.",
+                "count": 1
+              },
+              {
+                "value": "\u201cI have TSA Pre, so that should make it a little easier,\u201d said Bay Area resident Katelin Tharp, who on Thursday was booted from an overbooked flight to Boston, where she\u2019s beginning her fifth year at Northeastern University.",
+                "count": 1
+              },
+              {
+                "value": "\u201cSo, I\u2019ll be hanging out for a little bit.\u201d",
+                "count": 1
+              },
+              {
+                "value": "\u201cWe\u2019re sad since we just said goodbye to our one friend, and we don\u2019t know if we\u2019re ever going to see her again,\u201d Ellie Mitchell, of the United Kingdom, told The Standard.",
+                "count": 1
+              }
+            ]
+          },
+          {
+            "name": "Type of Source",
+            "inferred_dtype": "categorical",
+            "column_family": "categorical",
+            "non_null_count": 12,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 2,
+            "sample_values": [
+              "Named Person",
+              "Named Organization"
+            ],
+            "numeric_stats": null,
+            "numeric_distribution": [],
+            "categorical_top_values": [
+              {
+                "value": "Named Person",
+                "count": 9
+              },
+              {
+                "value": "Named Organization",
+                "count": 3
+              }
+            ]
+          },
+          {
+            "name": "Name of Source",
+            "inferred_dtype": "categorical",
+            "column_family": "categorical",
+            "non_null_count": 12,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 5,
+            "sample_values": [
+              "Doug Yakel",
+              "United Airlines",
+              "Katelin Tharp",
+              "Ellie Mitchell",
+              "Caltrans"
+            ],
+            "numeric_stats": null,
+            "numeric_distribution": [],
+            "categorical_top_values": [
+              {
+                "value": "Doug Yakel",
+                "count": 6
+              },
+              {
+                "value": "United Airlines",
+                "count": 2
+              },
+              {
+                "value": "Katelin Tharp",
+                "count": 2
+              },
+              {
+                "value": "Ellie Mitchell",
+                "count": 1
+              },
+              {
+                "value": "Caltrans",
+                "count": 1
+              }
+            ]
+          },
+          {
+            "name": "Title of Source",
+            "inferred_dtype": "categorical",
+            "column_family": "categorical",
+            "non_null_count": 6,
+            "null_count": 6,
+            "null_ratio": 0.5,
+            "unique_count": 1,
+            "sample_values": [
+              "SFO spokesperson"
+            ],
+            "numeric_stats": null,
+            "numeric_distribution": [],
+            "categorical_top_values": [
+              {
+                "value": "SFO spokesperson",
+                "count": 6
+              }
+            ]
+          },
+          {
+            "name": "Source Justification",
+            "inferred_dtype": "categorical",
+            "column_family": "categorical",
+            "non_null_count": 12,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 5,
+            "sample_values": [
+              "SFO spokesperson Doug Yakel",
+              "A United Airlines spokesperson",
+              "Bay Area resident Katelin Tharp, who on Thursday was booted from an overbooked flight to Boston, where she\u2019s beginning her fifth year at Northeastern University",
+              "Ellie Mitchell, of the United Kingdom",
+              "Caltrans officials"
+            ],
+            "numeric_stats": null,
+            "numeric_distribution": [],
+            "categorical_top_values": [
+              {
+                "value": "SFO spokesperson Doug Yakel",
+                "count": 6
+              },
+              {
+                "value": "A United Airlines spokesperson",
+                "count": 2
+              },
+              {
+                "value": "Bay Area resident Katelin Tharp, who on Thursday was booted from an overbooked flight to Boston, where she\u2019s beginning her fifth year at Northeastern University",
+                "count": 2
+              },
+              {
+                "value": "Ellie Mitchell, of the United Kingdom",
+                "count": 1
+              },
+              {
+                "value": "Caltrans officials",
+                "count": 1
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "Profile is sample-based, using the first N rows rather than the full dataset.",
+          "Rows sampled: 12"
+        ]
+      }
+    },
+    {
+      "title": "Data Quality",
+      "summary": "Data quality validation was not run in this session.",
+      "bullets": [],
+      "data": {}
+    },
+    {
+      "title": "Preprocessing",
+      "summary": "Preprocessing did not run before this report was generated.",
+      "bullets": [],
+      "data": {}
+    },
+    {
+      "title": "Model Training",
+      "summary": "Model training results were not available.",
+      "bullets": [],
+      "data": {}
+    },
+    {
+      "title": "Evaluation",
+      "summary": "Evaluation results were not available.",
+      "bullets": [],
+      "data": {}
+    }
+  ],
+  "artifacts": [],
+  "source_results": []
+}

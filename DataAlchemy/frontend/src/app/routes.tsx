@@ -7,6 +7,7 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { ComingSoonPage } from "./pages/ComingSoonPage";
 import { AdminPage } from "./pages/AdminPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { ReportsPage } from "./pages/ReportsPage";
 
 export const router = createBrowserRouter([
   {
@@ -22,13 +23,7 @@ export const router = createBrowserRouter([
       { path: "schema", Component: SchemaProfilePage },
       { path: "projects", Component: ProjectsPage },
       { path: "agents", Component: AgentsPage },
-      {
-        path: "reports",
-        element: <ComingSoonPage
-          title="Reports"
-          description="Advanced analytics and custom reporting dashboards will be added in the reporting milestone. Generate insights, track metrics, and share findings with your team."
-        />
-      },
+      { path: "reports", Component: ReportsPage },
       {
         path: "powerbi",
         element: <ComingSoonPage

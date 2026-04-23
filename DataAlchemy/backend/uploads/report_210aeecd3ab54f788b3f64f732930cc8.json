@@ -1,0 +1,1501 @@
+{
+  "dataset_id": "210aeecd3ab54f788b3f64f732930cc8.csv",
+  "title": "Analysis Report for iris.csv",
+  "audience": "team",
+  "style": "structured",
+  "tone": "technical",
+  "generated_at": "2026-04-23T20:01:15.541307+00:00",
+  "executive_summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.",
+  "next_steps": [
+    "Review the evaluation metrics and compare them to the project objective.",
+    "Investigate the highest-impact quality issues before operational use.",
+    "Revise the report draft with domain conclusions, caveats, and stakeholder recommendations."
+  ],
+  "draft_markdown": "# Analysis Report for iris.csv\n\n## Executive Summary\nSelected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.\n\n## Dataset Overview\nDataset contains 5 column(s) with 0 column(s) containing nulls.\n\n- Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv\n- Rows sampled: 6\n- Numeric columns: 4\n- Categorical columns: 1\n\n## Data Quality\nData quality validation was not run in this session.\n\n## Preprocessing\nPreprocessing completed and produced a modeling dataset.\n\n## Model Training\nSelected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species.\n\n- task_type: classification\n- n_samples: 6\n- n_features: 4\n- training_time_seconds: 2.18\n- model_file_id: model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib\n\n## Evaluation\nEvaluation completed.\n\n## Recommendations\n- Review the evaluation metrics and compare them to the project objective.\n- Investigate the highest-impact quality issues before operational use.\n- Revise the report draft with domain conclusions, caveats, and stakeholder recommendations.",
+  "sections": [
+    {
+      "title": "Dataset Overview",
+      "summary": "Dataset contains 5 column(s) with 0 column(s) containing nulls.",
+      "bullets": [
+        "Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv",
+        "Rows sampled: 6",
+        "Numeric columns: 4",
+        "Categorical columns: 1"
+      ],
+      "data": {
+        "dataset_id": "210aeecd3ab54f788b3f64f732930cc8.csv",
+        "file_name": "iris.csv",
+        "created_at": "2026-04-23T05:09:55.419543+00:00",
+        "file_size_bytes": 215,
+        "rows_sampled": 6,
+        "total_columns": 5,
+        "numeric_columns": 4,
+        "categorical_columns": 1,
+        "columns_with_missing_values": 0,
+        "columns": [
+          {
+            "name": "sepal_length",
+            "inferred_dtype": "float",
+            "column_family": "numeric",
+            "non_null_count": 6,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 6,
+            "sample_values": [
+              "5.1",
+              "4.9",
+              "6.2",
+              "5.9",
+              "6.0"
+            ],
+            "numeric_stats": {
+              "min": 4.9,
+              "max": 6.2,
+              "mean": 5.6,
+              "median": 5.7
+            },
+            "numeric_distribution": [
+              {
+                "label": "4.9-5.03",
+                "start": 4.9,
+                "end": 5.03,
+                "count": 1
+              },
+              {
+                "label": "5.03-5.16",
+                "start": 5.03,
+                "end": 5.16,
+                "count": 1
+              },
+              {
+                "label": "5.16-5.29",
+                "start": 5.16,
+                "end": 5.29,
+                "count": 0
+              },
+              {
+                "label": "5.29-5.42",
+                "start": 5.29,
+                "end": 5.42,
+                "count": 0
+              },
+              {
+                "label": "5.42-5.55",
+                "start": 5.42,
+                "end": 5.55,
+                "count": 1
+              },
+              {
+                "label": "5.55-5.68",
+                "start": 5.55,
+                "end": 5.68,
+                "count": 0
+              },
+              {
+                "label": "5.68-5.81",
+                "start": 5.68,
+                "end": 5.81,
+                "count": 0
+              },
+              {
+                "label": "5.81-5.94",
+                "start": 5.81,
+                "end": 5.94,
+                "count": 1
+              },
+              {
+                "label": "5.94-6.07",
+                "start": 5.94,
+                "end": 6.07,
+                "count": 1
+              },
+              {
+                "label": "6.07-6.2",
+                "start": 6.07,
+                "end": 6.2,
+                "count": 1
+              }
+            ],
+            "categorical_top_values": []
+          },
+          {
+            "name": "sepal_width",
+            "inferred_dtype": "float",
+            "column_family": "numeric",
+            "non_null_count": 6,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 5,
+            "sample_values": [
+              "3.5",
+              "3.0",
+              "3.4",
+              "2.2",
+              "2.3"
+            ],
+            "numeric_stats": {
+              "min": 2.2,
+              "max": 3.5,
+              "mean": 2.9,
+              "median": 3.0
+            },
+            "numeric_distribution": [
+              {
+                "label": "2.2-2.33",
+                "start": 2.2,
+                "end": 2.33,
+                "count": 2
+              },
+              {
+                "label": "2.33-2.46",
+                "start": 2.33,
+                "end": 2.46,
+                "count": 0
+              },
+              {
+                "label": "2.46-2.59",
+                "start": 2.46,
+                "end": 2.59,
+                "count": 0
+              },
+              {
+                "label": "2.59-2.72",
+                "start": 2.59,
+                "end": 2.72,
+                "count": 0
+              },
+              {
+                "label": "2.72-2.85",
+                "start": 2.72,
+                "end": 2.85,
+                "count": 0
+              },
+              {
+                "label": "2.85-2.98",
+                "start": 2.85,
+                "end": 2.98,
+                "count": 0
+              },
+              {
+                "label": "2.98-3.11",
+                "start": 2.98,
+                "end": 3.11,
+                "count": 2
+              },
+              {
+                "label": "3.11-3.24",
+                "start": 3.11,
+                "end": 3.24,
+                "count": 0
+              },
+              {
+                "label": "3.24-3.37",
+                "start": 3.24,
+                "end": 3.37,
+                "count": 0
+              },
+              {
+                "label": "3.37-3.5",
+                "start": 3.37,
+                "end": 3.5,
+                "count": 2
+              }
+            ],
+            "categorical_top_values": []
+          },
+          {
+            "name": "petal_length",
+            "inferred_dtype": "float",
+            "column_family": "numeric",
+            "non_null_count": 6,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 4,
+            "sample_values": [
+              "1.4",
+              "5.4",
+              "5.1",
+              "4.0"
+            ],
+            "numeric_stats": {
+              "min": 1.4,
+              "max": 5.4,
+              "mean": 3.55,
+              "median": 4.0
+            },
+            "numeric_distribution": [
+              {
+                "label": "1.4-1.8",
+                "start": 1.4,
+                "end": 1.8,
+                "count": 2
+              },
+              {
+                "label": "1.8-2.2",
+                "start": 1.8,
+                "end": 2.2,
+                "count": 0
+              },
+              {
+                "label": "2.2-2.6",
+                "start": 2.2,
+                "end": 2.6,
+                "count": 0
+              },
+              {
+                "label": "2.6-3.0",
+                "start": 2.6,
+                "end": 3.0,
+                "count": 0
+              },
+              {
+                "label": "3.0-3.4",
+                "start": 3.0,
+                "end": 3.4,
+                "count": 0
+              },
+              {
+                "label": "3.4-3.8",
+                "start": 3.4,
+                "end": 3.8,
+                "count": 0
+              },
+              {
+                "label": "3.8-4.2",
+                "start": 3.8,
+                "end": 4.2,
+                "count": 2
+              },
+              {
+                "label": "4.2-4.6",
+                "start": 4.2,
+                "end": 4.6,
+                "count": 0
+              },
+              {
+                "label": "4.6-5.0",
+                "start": 4.6,
+                "end": 5.0,
+                "count": 0
+              },
+              {
+                "label": "5.0-5.4",
+                "start": 5.0,
+                "end": 5.4,
+                "count": 2
+              }
+            ],
+            "categorical_top_values": []
+          },
+          {
+            "name": "petal_width",
+            "inferred_dtype": "float",
+            "column_family": "numeric",
+            "non_null_count": 6,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 5,
+            "sample_values": [
+              "0.2",
+              "2.3",
+              "1.8",
+              "1.0",
+              "1.3"
+            ],
+            "numeric_stats": {
+              "min": 0.2,
+              "max": 2.3,
+              "mean": 1.133333,
+              "median": 1.15
+            },
+            "numeric_distribution": [
+              {
+                "label": "0.2-0.41",
+                "start": 0.2,
+                "end": 0.41,
+                "count": 2
+              },
+              {
+                "label": "0.41-0.62",
+                "start": 0.41,
+                "end": 0.62,
+                "count": 0
+              },
+              {
+                "label": "0.62-0.83",
+                "start": 0.62,
+                "end": 0.83,
+                "count": 0
+              },
+              {
+                "label": "0.83-1.04",
+                "start": 0.83,
+                "end": 1.04,
+                "count": 1
+              },
+              {
+                "label": "1.04-1.25",
+                "start": 1.04,
+                "end": 1.25,
+                "count": 0
+              },
+              {
+                "label": "1.25-1.46",
+                "start": 1.25,
+                "end": 1.46,
+                "count": 1
+              },
+              {
+                "label": "1.46-1.67",
+                "start": 1.46,
+                "end": 1.67,
+                "count": 0
+              },
+              {
+                "label": "1.67-1.88",
+                "start": 1.67,
+                "end": 1.88,
+                "count": 1
+              },
+              {
+                "label": "1.88-2.09",
+                "start": 1.88,
+                "end": 2.09,
+                "count": 0
+              },
+              {
+                "label": "2.09-2.3",
+                "start": 2.09,
+                "end": 2.3,
+                "count": 1
+              }
+            ],
+            "categorical_top_values": []
+          },
+          {
+            "name": "species",
+            "inferred_dtype": "categorical",
+            "column_family": "categorical",
+            "non_null_count": 6,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 3,
+            "sample_values": [
+              "setosa",
+              "virginica",
+              "versicolor"
+            ],
+            "numeric_stats": null,
+            "numeric_distribution": [],
+            "categorical_top_values": [
+              {
+                "value": "setosa",
+                "count": 2
+              },
+              {
+                "value": "virginica",
+                "count": 2
+              },
+              {
+                "value": "versicolor",
+                "count": 2
+              }
+            ]
+          }
+        ],
+        "notes": [
+          "Profile is sample-based, using the first N rows rather than the full dataset.",
+          "Rows sampled: 6"
+        ]
+      }
+    },
+    {
+      "title": "Data Quality",
+      "summary": "Data quality validation was not run in this session.",
+      "bullets": [],
+      "data": {}
+    },
+    {
+      "title": "Preprocessing",
+      "summary": "Preprocessing completed and produced a modeling dataset.",
+      "bullets": [],
+      "data": {
+        "rows_input": 6,
+        "rows_output": 6,
+        "columns_input": 5,
+        "columns_output": 5,
+        "transformations_applied": [
+          "scale_standard"
+        ],
+        "preprocessing_log": [
+          {
+            "column": "sepal_length",
+            "action": "standard_scale",
+            "detail": "Standardized (mean=5.6, std=0.5215)"
+          },
+          {
+            "column": "sepal_width",
+            "action": "standard_scale",
+            "detail": "Standardized (mean=2.9, std=0.5441)"
+          },
+          {
+            "column": "petal_length",
+            "action": "standard_scale",
+            "detail": "Standardized (mean=3.55, std=1.759)"
+          },
+          {
+            "column": "petal_width",
+            "action": "standard_scale",
+            "detail": "Standardized (mean=1.133, std=0.8477)"
+          }
+        ],
+        "preprocessed_file_id": "preprocessed_210aeecd3ab54f788b3f64f732930cc8.csv",
+        "target_summary": {
+          "target_column": "species",
+          "total_values": 6,
+          "class_distribution": {
+            "setosa": 0.3333,
+            "virginica": 0.3333,
+            "versicolor": 0.3333
+          }
+        }
+      }
+    },
+    {
+      "title": "Model Training",
+      "summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species.",
+      "bullets": [
+        "task_type: classification",
+        "n_samples: 6",
+        "n_features: 4",
+        "training_time_seconds: 2.18",
+        "model_file_id: model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib"
+      ],
+      "data": {
+        "task_type": "classification",
+        "target_column": "species",
+        "target_inferred": false,
+        "n_samples": 6,
+        "n_features": 4,
+        "metric": "f1_macro",
+        "cv_folds": 2,
+        "chosen_model": "LogisticRegression",
+        "best_params": {
+          "C": 0.0745934328572655
+        },
+        "cv_score": 1,
+        "candidates_evaluated": [
+          {
+            "model": "LogisticRegression",
+            "cv_score": 1,
+            "n_trials": 5
+          },
+          {
+            "model": "RandomForestClassifier",
+            "cv_score": 1,
+            "n_trials": 5
+          }
+        ],
+        "model_file_id": "model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib",
+        "training_time_seconds": 2.18
+      }
+    },
+    {
+      "title": "Evaluation",
+      "summary": "Evaluation completed.",
+      "bullets": [],
+      "data": {
+        "agent": "evaluation_agent",
+        "step": "evaluate_classification_model",
+        "message": "Step completed by default runtime handler"
+      }
+    }
+  ],
+  "artifacts": [],
+  "assistant_context": {
+    "dataset_id": "210aeecd3ab54f788b3f64f732930cc8.csv",
+    "dataset_overview": {
+      "dataset_id": "210aeecd3ab54f788b3f64f732930cc8.csv",
+      "file_name": "iris.csv",
+      "created_at": "2026-04-23T05:09:55.419543+00:00",
+      "file_size_bytes": 215,
+      "rows_sampled": 6,
+      "total_columns": 5,
+      "numeric_columns": 4,
+      "categorical_columns": 1,
+      "columns_with_missing_values": 0,
+      "columns": [
+        {
+          "name": "sepal_length",
+          "inferred_dtype": "float",
+          "column_family": "numeric",
+          "non_null_count": 6,
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 6,
+          "sample_values": [
+            "5.1",
+            "4.9",
+            "6.2",
+            "5.9",
+            "6.0"
+          ],
+          "numeric_stats": {
+            "min": 4.9,
+            "max": 6.2,
+            "mean": 5.6,
+            "median": 5.7
+          },
+          "numeric_distribution": [
+            {
+              "label": "4.9-5.03",
+              "start": 4.9,
+              "end": 5.03,
+              "count": 1
+            },
+            {
+              "label": "5.03-5.16",
+              "start": 5.03,
+              "end": 5.16,
+              "count": 1
+            },
+            {
+              "label": "5.16-5.29",
+              "start": 5.16,
+              "end": 5.29,
+              "count": 0
+            },
+            {
+              "label": "5.29-5.42",
+              "start": 5.29,
+              "end": 5.42,
+              "count": 0
+            },
+            {
+              "label": "5.42-5.55",
+              "start": 5.42,
+              "end": 5.55,
+              "count": 1
+            },
+            {
+              "label": "5.55-5.68",
+              "start": 5.55,
+              "end": 5.68,
+              "count": 0
+            },
+            {
+              "label": "5.68-5.81",
+              "start": 5.68,
+              "end": 5.81,
+              "count": 0
+            },
+            {
+              "label": "5.81-5.94",
+              "start": 5.81,
+              "end": 5.94,
+              "count": 1
+            },
+            {
+              "label": "5.94-6.07",
+              "start": 5.94,
+              "end": 6.07,
+              "count": 1
+            },
+            {
+              "label": "6.07-6.2",
+              "start": 6.07,
+              "end": 6.2,
+              "count": 1
+            }
+          ],
+          "categorical_top_values": []
+        },
+        {
+          "name": "sepal_width",
+          "inferred_dtype": "float",
+          "column_family": "numeric",
+          "non_null_count": 6,
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 5,
+          "sample_values": [
+            "3.5",
+            "3.0",
+            "3.4",
+            "2.2",
+            "2.3"
+          ],
+          "numeric_stats": {
+            "min": 2.2,
+            "max": 3.5,
+            "mean": 2.9,
+            "median": 3.0
+          },
+          "numeric_distribution": [
+            {
+              "label": "2.2-2.33",
+              "start": 2.2,
+              "end": 2.33,
+              "count": 2
+            },
+            {
+              "label": "2.33-2.46",
+              "start": 2.33,
+              "end": 2.46,
+              "count": 0
+            },
+            {
+              "label": "2.46-2.59",
+              "start": 2.46,
+              "end": 2.59,
+              "count": 0
+            },
+            {
+              "label": "2.59-2.72",
+              "start": 2.59,
+              "end": 2.72,
+              "count": 0
+            },
+            {
+              "label": "2.72-2.85",
+              "start": 2.72,
+              "end": 2.85,
+              "count": 0
+            },
+            {
+              "label": "2.85-2.98",
+              "start": 2.85,
+              "end": 2.98,
+              "count": 0
+            },
+            {
+              "label": "2.98-3.11",
+              "start": 2.98,
+              "end": 3.11,
+              "count": 2
+            },
+            {
+              "label": "3.11-3.24",
+              "start": 3.11,
+              "end": 3.24,
+              "count": 0
+            },
+            {
+              "label": "3.24-3.37",
+              "start": 3.24,
+              "end": 3.37,
+              "count": 0
+            },
+            {
+              "label": "3.37-3.5",
+              "start": 3.37,
+              "end": 3.5,
+              "count": 2
+            }
+          ],
+          "categorical_top_values": []
+        },
+        {
+          "name": "petal_length",
+          "inferred_dtype": "float",
+          "column_family": "numeric",
+          "non_null_count": 6,
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 4,
+          "sample_values": [
+            "1.4",
+            "5.4",
+            "5.1",
+            "4.0"
+          ],
+          "numeric_stats": {
+            "min": 1.4,
+            "max": 5.4,
+            "mean": 3.55,
+            "median": 4.0
+          },
+          "numeric_distribution": [
+            {
+              "label": "1.4-1.8",
+              "start": 1.4,
+              "end": 1.8,
+              "count": 2
+            },
+            {
+              "label": "1.8-2.2",
+              "start": 1.8,
+              "end": 2.2,
+              "count": 0
+            },
+            {
+              "label": "2.2-2.6",
+              "start": 2.2,
+              "end": 2.6,
+              "count": 0
+            },
+            {
+              "label": "2.6-3.0",
+              "start": 2.6,
+              "end": 3.0,
+              "count": 0
+            },
+            {
+              "label": "3.0-3.4",
+              "start": 3.0,
+              "end": 3.4,
+              "count": 0
+            },
+            {
+              "label": "3.4-3.8",
+              "start": 3.4,
+              "end": 3.8,
+              "count": 0
+            },
+            {
+              "label": "3.8-4.2",
+              "start": 3.8,
+              "end": 4.2,
+              "count": 2
+            },
+            {
+              "label": "4.2-4.6",
+              "start": 4.2,
+              "end": 4.6,
+              "count": 0
+            },
+            {
+              "label": "4.6-5.0",
+              "start": 4.6,
+              "end": 5.0,
+              "count": 0
+            },
+            {
+              "label": "5.0-5.4",
+              "start": 5.0,
+              "end": 5.4,
+              "count": 2
+            }
+          ],
+          "categorical_top_values": []
+        },
+        {
+          "name": "petal_width",
+          "inferred_dtype": "float",
+          "column_family": "numeric",
+          "non_null_count": 6,
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 5,
+          "sample_values": [
+            "0.2",
+            "2.3",
+            "1.8",
+            "1.0",
+            "1.3"
+          ],
+          "numeric_stats": {
+            "min": 0.2,
+            "max": 2.3,
+            "mean": 1.133333,
+            "median": 1.15
+          },
+          "numeric_distribution": [
+            {
+              "label": "0.2-0.41",
+              "start": 0.2,
+              "end": 0.41,
+              "count": 2
+            },
+            {
+              "label": "0.41-0.62",
+              "start": 0.41,
+              "end": 0.62,
+              "count": 0
+            },
+            {
+              "label": "0.62-0.83",
+              "start": 0.62,
+              "end": 0.83,
+              "count": 0
+            },
+            {
+              "label": "0.83-1.04",
+              "start": 0.83,
+              "end": 1.04,
+              "count": 1
+            },
+            {
+              "label": "1.04-1.25",
+              "start": 1.04,
+              "end": 1.25,
+              "count": 0
+            },
+            {
+              "label": "1.25-1.46",
+              "start": 1.25,
+              "end": 1.46,
+              "count": 1
+            },
+            {
+              "label": "1.46-1.67",
+              "start": 1.46,
+              "end": 1.67,
+              "count": 0
+            },
+            {
+              "label": "1.67-1.88",
+              "start": 1.67,
+              "end": 1.88,
+              "count": 1
+            },
+            {
+              "label": "1.88-2.09",
+              "start": 1.88,
+              "end": 2.09,
+              "count": 0
+            },
+            {
+              "label": "2.09-2.3",
+              "start": 2.09,
+              "end": 2.3,
+              "count": 1
+            }
+          ],
+          "categorical_top_values": []
+        },
+        {
+          "name": "species",
+          "inferred_dtype": "categorical",
+          "column_family": "categorical",
+          "non_null_count": 6,
+          "null_count": 0,
+          "null_ratio": 0.0,
+          "unique_count": 3,
+          "sample_values": [
+            "setosa",
+            "virginica",
+            "versicolor"
+          ],
+          "numeric_stats": null,
+          "numeric_distribution": [],
+          "categorical_top_values": [
+            {
+              "value": "setosa",
+              "count": 2
+            },
+            {
+              "value": "virginica",
+              "count": 2
+            },
+            {
+              "value": "versicolor",
+              "count": 2
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Profile is sample-based, using the first N rows rather than the full dataset.",
+        "Rows sampled: 6"
+      ]
+    },
+    "sections": [
+      {
+        "title": "Dataset Overview",
+        "summary": "Dataset contains 5 column(s) with 0 column(s) containing nulls.",
+        "bullets": [
+          "Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv",
+          "Rows sampled: 6",
+          "Numeric columns: 4",
+          "Categorical columns: 1"
+        ],
+        "data": {
+          "dataset_id": "210aeecd3ab54f788b3f64f732930cc8.csv",
+          "file_name": "iris.csv",
+          "created_at": "2026-04-23T05:09:55.419543+00:00",
+          "file_size_bytes": 215,
+          "rows_sampled": 6,
+          "total_columns": 5,
+          "numeric_columns": 4,
+          "categorical_columns": 1,
+          "columns_with_missing_values": 0,
+          "columns": [
+            {
+              "name": "sepal_length",
+              "inferred_dtype": "float",
+              "column_family": "numeric",
+              "non_null_count": 6,
+              "null_count": 0,
+              "null_ratio": 0.0,
+              "unique_count": 6,
+              "sample_values": [
+                "5.1",
+                "4.9",
+                "6.2",
+                "5.9",
+                "6.0"
+              ],
+              "numeric_stats": {
+                "min": 4.9,
+                "max": 6.2,
+                "mean": 5.6,
+                "median": 5.7
+              },
+              "numeric_distribution": [
+                {
+                  "label": "4.9-5.03",
+                  "start": 4.9,
+                  "end": 5.03,
+                  "count": 1
+                },
+                {
+                  "label": "5.03-5.16",
+                  "start": 5.03,
+                  "end": 5.16,
+                  "count": 1
+                },
+                {
+                  "label": "5.16-5.29",
+                  "start": 5.16,
+                  "end": 5.29,
+                  "count": 0
+                },
+                {
+                  "label": "5.29-5.42",
+                  "start": 5.29,
+                  "end": 5.42,
+                  "count": 0
+                },
+                {
+                  "label": "5.42-5.55",
+                  "start": 5.42,
+                  "end": 5.55,
+                  "count": 1
+                },
+                {
+                  "label": "5.55-5.68",
+                  "start": 5.55,
+                  "end": 5.68,
+                  "count": 0
+                },
+                {
+                  "label": "5.68-5.81",
+                  "start": 5.68,
+                  "end": 5.81,
+                  "count": 0
+                },
+                {
+                  "label": "5.81-5.94",
+                  "start": 5.81,
+                  "end": 5.94,
+                  "count": 1
+                },
+                {
+                  "label": "5.94-6.07",
+                  "start": 5.94,
+                  "end": 6.07,
+                  "count": 1
+                },
+                {
+                  "label": "6.07-6.2",
+                  "start": 6.07,
+                  "end": 6.2,
+                  "count": 1
+                }
+              ],
+              "categorical_top_values": []
+            },
+            {
+              "name": "sepal_width",
+              "inferred_dtype": "float",
+              "column_family": "numeric",
+              "non_null_count": 6,
+              "null_count": 0,
+              "null_ratio": 0.0,
+              "unique_count": 5,
+              "sample_values": [
+                "3.5",
+                "3.0",
+                "3.4",
+                "2.2",
+                "2.3"
+              ],
+              "numeric_stats": {
+                "min": 2.2,
+                "max": 3.5,
+                "mean": 2.9,
+                "median": 3.0
+              },
+              "numeric_distribution": [
+                {
+                  "label": "2.2-2.33",
+                  "start": 2.2,
+                  "end": 2.33,
+                  "count": 2
+                },
+                {
+                  "label": "2.33-2.46",
+                  "start": 2.33,
+                  "end": 2.46,
+                  "count": 0
+                },
+                {
+                  "label": "2.46-2.59",
+                  "start": 2.46,
+                  "end": 2.59,
+                  "count": 0
+                },
+                {
+                  "label": "2.59-2.72",
+                  "start": 2.59,
+                  "end": 2.72,
+                  "count": 0
+                },
+                {
+                  "label": "2.72-2.85",
+                  "start": 2.72,
+                  "end": 2.85,
+                  "count": 0
+                },
+                {
+                  "label": "2.85-2.98",
+                  "start": 2.85,
+                  "end": 2.98,
+                  "count": 0
+                },
+                {
+                  "label": "2.98-3.11",
+                  "start": 2.98,
+                  "end": 3.11,
+                  "count": 2
+                },
+                {
+                  "label": "3.11-3.24",
+                  "start": 3.11,
+                  "end": 3.24,
+                  "count": 0
+                },
+                {
+                  "label": "3.24-3.37",
+                  "start": 3.24,
+                  "end": 3.37,
+                  "count": 0
+                },
+                {
+                  "label": "3.37-3.5",
+                  "start": 3.37,
+                  "end": 3.5,
+                  "count": 2
+                }
+              ],
+              "categorical_top_values": []
+            },
+            {
+              "name": "petal_length",
+              "inferred_dtype": "float",
+              "column_family": "numeric",
+              "non_null_count": 6,
+              "null_count": 0,
+              "null_ratio": 0.0,
+              "unique_count": 4,
+              "sample_values": [
+                "1.4",
+                "5.4",
+                "5.1",
+                "4.0"
+              ],
+              "numeric_stats": {
+                "min": 1.4,
+                "max": 5.4,
+                "mean": 3.55,
+                "median": 4.0
+              },
+              "numeric_distribution": [
+                {
+                  "label": "1.4-1.8",
+                  "start": 1.4,
+                  "end": 1.8,
+                  "count": 2
+                },
+                {
+                  "label": "1.8-2.2",
+                  "start": 1.8,
+                  "end": 2.2,
+                  "count": 0
+                },
+                {
+                  "label": "2.2-2.6",
+                  "start": 2.2,
+                  "end": 2.6,
+                  "count": 0
+                },
+                {
+                  "label": "2.6-3.0",
+                  "start": 2.6,
+                  "end": 3.0,
+                  "count": 0
+                },
+                {
+                  "label": "3.0-3.4",
+                  "start": 3.0,
+                  "end": 3.4,
+                  "count": 0
+                },
+                {
+                  "label": "3.4-3.8",
+                  "start": 3.4,
+                  "end": 3.8,
+                  "count": 0
+                },
+                {
+                  "label": "3.8-4.2",
+                  "start": 3.8,
+                  "end": 4.2,
+                  "count": 2
+                },
+                {
+                  "label": "4.2-4.6",
+                  "start": 4.2,
+                  "end": 4.6,
+                  "count": 0
+                },
+                {
+                  "label": "4.6-5.0",
+                  "start": 4.6,
+                  "end": 5.0,
+                  "count": 0
+                },
+                {
+                  "label": "5.0-5.4",
+                  "start": 5.0,
+                  "end": 5.4,
+                  "count": 2
+                }
+              ],
+              "categorical_top_values": []
+            },
+            {
+              "name": "petal_width",
+              "inferred_dtype": "float",
+              "column_family": "numeric",
+              "non_null_count": 6,
+              "null_count": 0,
+              "null_ratio": 0.0,
+              "unique_count": 5,
+              "sample_values": [
+                "0.2",
+                "2.3",
+                "1.8",
+                "1.0",
+                "1.3"
+              ],
+              "numeric_stats": {
+                "min": 0.2,
+                "max": 2.3,
+                "mean": 1.133333,
+                "median": 1.15
+              },
+              "numeric_distribution": [
+                {
+                  "label": "0.2-0.41",
+                  "start": 0.2,
+                  "end": 0.41,
+                  "count": 2
+                },
+                {
+                  "label": "0.41-0.62",
+                  "start": 0.41,
+                  "end": 0.62,
+                  "count": 0
+                },
+                {
+                  "label": "0.62-0.83",
+                  "start": 0.62,
+                  "end": 0.83,
+                  "count": 0
+                },
+                {
+                  "label": "0.83-1.04",
+                  "start": 0.83,
+                  "end": 1.04,
+                  "count": 1
+                },
+                {
+                  "label": "1.04-1.25",
+                  "start": 1.04,
+                  "end": 1.25,
+                  "count": 0
+                },
+                {
+                  "label": "1.25-1.46",
+                  "start": 1.25,
+                  "end": 1.46,
+                  "count": 1
+                },
+                {
+                  "label": "1.46-1.67",
+                  "start": 1.46,
+                  "end": 1.67,
+                  "count": 0
+                },
+                {
+                  "label": "1.67-1.88",
+                  "start": 1.67,
+                  "end": 1.88,
+                  "count": 1
+                },
+                {
+                  "label": "1.88-2.09",
+                  "start": 1.88,
+                  "end": 2.09,
+                  "count": 0
+                },
+                {
+                  "label": "2.09-2.3",
+                  "start": 2.09,
+                  "end": 2.3,
+                  "count": 1
+                }
+              ],
+              "categorical_top_values": []
+            },
+            {
+              "name": "species",
+              "inferred_dtype": "categorical",
+              "column_family": "categorical",
+              "non_null_count": 6,
+              "null_count": 0,
+              "null_ratio": 0.0,
+              "unique_count": 3,
+              "sample_values": [
+                "setosa",
+                "virginica",
+                "versicolor"
+              ],
+              "numeric_stats": null,
+              "numeric_distribution": [],
+              "categorical_top_values": [
+                {
+                  "value": "setosa",
+                  "count": 2
+                },
+                {
+                  "value": "virginica",
+                  "count": 2
+                },
+                {
+                  "value": "versicolor",
+                  "count": 2
+                }
+              ]
+            }
+          ],
+          "notes": [
+            "Profile is sample-based, using the first N rows rather than the full dataset.",
+            "Rows sampled: 6"
+          ]
+        }
+      },
+      {
+        "title": "Data Quality",
+        "summary": "Data quality validation was not run in this session.",
+        "bullets": [],
+        "data": {}
+      },
+      {
+        "title": "Preprocessing",
+        "summary": "Preprocessing completed and produced a modeling dataset.",
+        "bullets": [],
+        "data": {
+          "rows_input": 6,
+          "rows_output": 6,
+          "columns_input": 5,
+          "columns_output": 5,
+          "transformations_applied": [
+            "scale_standard"
+          ],
+          "preprocessing_log": [
+            {
+              "column": "sepal_length",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=5.6, std=0.5215)"
+            },
+            {
+              "column": "sepal_width",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=2.9, std=0.5441)"
+            },
+            {
+              "column": "petal_length",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=3.55, std=1.759)"
+            },
+            {
+              "column": "petal_width",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=1.133, std=0.8477)"
+            }
+          ],
+          "preprocessed_file_id": "preprocessed_210aeecd3ab54f788b3f64f732930cc8.csv",
+          "target_summary": {
+            "target_column": "species",
+            "total_values": 6,
+            "class_distribution": {
+              "setosa": 0.3333,
+              "virginica": 0.3333,
+              "versicolor": 0.3333
+            }
+          }
+        }
+      },
+      {
+        "title": "Model Training",
+        "summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species.",
+        "bullets": [
+          "task_type: classification",
+          "n_samples: 6",
+          "n_features: 4",
+          "training_time_seconds: 2.18",
+          "model_file_id: model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib"
+        ],
+        "data": {
+          "task_type": "classification",
+          "target_column": "species",
+          "target_inferred": false,
+          "n_samples": 6,
+          "n_features": 4,
+          "metric": "f1_macro",
+          "cv_folds": 2,
+          "chosen_model": "LogisticRegression",
+          "best_params": {
+            "C": 0.0745934328572655
+          },
+          "cv_score": 1,
+          "candidates_evaluated": [
+            {
+              "model": "LogisticRegression",
+              "cv_score": 1,
+              "n_trials": 5
+            },
+            {
+              "model": "RandomForestClassifier",
+              "cv_score": 1,
+              "n_trials": 5
+            }
+          ],
+          "model_file_id": "model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib",
+          "training_time_seconds": 2.18
+        }
+      },
+      {
+        "title": "Evaluation",
+        "summary": "Evaluation completed.",
+        "bullets": [],
+        "data": {
+          "agent": "evaluation_agent",
+          "step": "evaluate_classification_model",
+          "message": "Step completed by default runtime handler"
+        }
+      }
+    ],
+    "artifacts": [],
+    "prior_results": [
+      {
+        "step": "profile_dataset",
+        "agent": "supervisor",
+        "result": {
+          "agent": "supervisor",
+          "step": "profile_dataset",
+          "message": "Step completed by default runtime handler"
+        }
+      },
+      {
+        "step": "prepare_features_and_target",
+        "agent": "data_preprocessing_agent",
+        "result": {
+          "rows_input": 6,
+          "rows_output": 6,
+          "columns_input": 5,
+          "columns_output": 5,
+          "transformations_applied": [
+            "scale_standard"
+          ],
+          "preprocessing_log": [
+            {
+              "column": "sepal_length",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=5.6, std=0.5215)"
+            },
+            {
+              "column": "sepal_width",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=2.9, std=0.5441)"
+            },
+            {
+              "column": "petal_length",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=3.55, std=1.759)"
+            },
+            {
+              "column": "petal_width",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=1.133, std=0.8477)"
+            }
+          ],
+          "preprocessed_file_id": "preprocessed_210aeecd3ab54f788b3f64f732930cc8.csv",
+          "target_summary": {
+            "target_column": "species",
+            "total_values": 6,
+            "class_distribution": {
+              "setosa": 0.3333,
+              "virginica": 0.3333,
+              "versicolor": 0.3333
+            }
+          }
+        }
+      },
+      {
+        "step": "train_classification_model",
+        "agent": "model_training_agent",
+        "result": {
+          "task_type": "classification",
+          "target_column": "species",
+          "target_inferred": false,
+          "n_samples": 6,
+          "n_features": 4,
+          "metric": "f1_macro",
+          "cv_folds": 2,
+          "chosen_model": "LogisticRegression",
+          "best_params": {
+            "C": 0.0745934328572655
+          },
+          "cv_score": 1,
+          "candidates_evaluated": [
+            {
+              "model": "LogisticRegression",
+              "cv_score": 1,
+              "n_trials": 5
+            },
+            {
+              "model": "RandomForestClassifier",
+              "cv_score": 1,
+              "n_trials": 5
+            }
+          ],
+          "model_file_id": "model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib",
+          "training_time_seconds": 2.18
+        }
+      },
+      {
+        "step": "evaluate_classification_model",
+        "agent": "evaluation_agent",
+        "result": {
+          "agent": "evaluation_agent",
+          "step": "evaluate_classification_model",
+          "message": "Step completed by default runtime handler"
+        }
+      }
+    ]
+  }
+}
