@@ -1,11 +1,14 @@
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 
+from app.core.settings import OPENAI_MODEL, UPLOAD_DIR
 from app.db.models import get_report_record_by_dataset_id, save_report_record
 from app.engine.llm_client import LLMClientError, call_text_llm
 from app.engine.agent_runtime import run_agent
-from app.engine.schemas import ReportAssistRequest, ReportGenerateRequest, ReportSaveRequest
-from app.core.settings import OPENAI_MODEL
+from app.engine.schemas import ReportAssistRequest, ReportCompileRequest, ReportGenerateRequest, ReportSaveRequest
 from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.report_latex import compile_latex_to_pdf, latex_compiler_available
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -38,9 +41,54 @@ async def generate_report(payload: ReportGenerateRequest):
 @router.post("/{dataset_id}/save")
 def save_report(dataset_id: str, payload: ReportSaveRequest):
 	file_id = safe_artifact_file_id("report", dataset_id, ".json")
-	write_json_artifact(file_id, payload.content)
-	save_report_record(dataset_id=dataset_id, file_id=file_id, content=payload.content)
-	return {"dataset_id": dataset_id, "file_id": file_id, "content": payload.content}
+	content = payload.content
+	latex_source = str(content.get("latex_source") or "")
+	latex_file_id = safe_artifact_file_id("report", dataset_id, ".tex")
+	compile_error = None
+	compiled_pdf_file_id = None
+	if latex_source:
+		(UPLOAD_DIR / latex_file_id).write_text(latex_source, encoding="utf-8")
+	if latex_source:
+		pdf_file_id = safe_artifact_file_id("report", dataset_id, ".pdf")
+		compile_result = compile_latex_to_pdf(latex_source, pdf_file_id)
+		if compile_result.get("success"):
+			compiled_pdf_file_id = compile_result.get("file_id")
+		else:
+			compile_error = compile_result.get("error")
+		content["compiled_pdf_file_id"] = compiled_pdf_file_id
+		content["latex_compile_error"] = compile_error
+		available, compiler = latex_compiler_available()
+		content["latex_compiler_available"] = available
+		content["latex_compiler"] = compiler
+	write_json_artifact(file_id, content)
+	save_report_record(dataset_id=dataset_id, file_id=file_id, content=content)
+	return {"dataset_id": dataset_id, "file_id": file_id, "content": content}
+
+
+@router.post("/compile")
+def compile_report(payload: ReportCompileRequest):
+	record = get_report_record_by_dataset_id(payload.dataset_id)
+	if record is None:
+		raise HTTPException(status_code=404, detail="Report not found")
+	content = record["content"]
+	latex_source = payload.latex_source or content.get("latex_source") or ""
+	if not latex_source:
+		raise HTTPException(status_code=400, detail="No LaTeX source available to compile")
+	file_id = safe_artifact_file_id("report", payload.dataset_id, ".pdf")
+	result = compile_latex_to_pdf(str(latex_source), file_id)
+	available, compiler = latex_compiler_available()
+	content["latex_compiler_available"] = available
+	content["latex_compiler"] = compiler
+	content["compiled_pdf_file_id"] = result.get("file_id")
+	content["latex_compile_error"] = result.get("error")
+	save_report_record(dataset_id=payload.dataset_id, file_id=record["file_id"], content=content)
+	return {
+		"success": bool(result.get("success")),
+		"file_id": result.get("file_id"),
+		"error": result.get("error"),
+		"compiler_available": available,
+		"compiler": compiler,
+	}
 
 
 @router.post("/assist")

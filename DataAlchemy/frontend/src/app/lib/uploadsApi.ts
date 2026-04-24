@@ -158,6 +158,11 @@ export interface ReportDocument {
   executive_summary: string;
   next_steps: string[];
   draft_markdown: string;
+  latex_source: string;
+  latex_compiler_available?: boolean;
+  latex_compiler?: string | null;
+  compiled_pdf_file_id?: string | null;
+  latex_compile_error?: string | null;
   sections: ReportSection[];
   artifacts: Array<Record<string, unknown>>;
   assistant_context?: Record<string, unknown>;
@@ -351,4 +356,31 @@ export async function assistWithReport(
   });
   const payload = await parseJsonOrThrow<{ reply: string }>(response, "Assist with report");
   return payload.reply;
+}
+
+export async function compileReportLatex(
+  datasetId: string,
+  latexSource: string,
+): Promise<{
+  success: boolean;
+  file_id?: string | null;
+  error?: string | null;
+  compiler_available?: boolean;
+  compiler?: string | null;
+}> {
+  const response = await fetch(`${API_BASE_URL}/api/reports/compile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      dataset_id: datasetId,
+      latex_source: latexSource,
+    }),
+  });
+  return parseJsonOrThrow<{
+    success: boolean;
+    file_id?: string | null;
+    error?: string | null;
+    compiler_available?: boolean;
+    compiler?: string | null;
+  }>(response, "Compile report");
 }

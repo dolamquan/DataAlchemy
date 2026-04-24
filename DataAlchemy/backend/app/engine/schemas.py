@@ -67,3 +67,8 @@ class ReportAssistRequest(BaseModel):
 	dataset_id: str = Field(..., min_length=1, max_length=256)
 	message: str = Field(..., min_length=1, max_length=4000)
 	current_draft: str | None = Field(default=None, max_length=50000)
+
+
+class ReportCompileRequest(BaseModel):
+	dataset_id: str = Field(..., min_length=1, max_length=256)
+	latex_source: str | None = Field(default=None, max_length=200000)

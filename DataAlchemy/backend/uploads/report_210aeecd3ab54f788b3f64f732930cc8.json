@@ -4,18 +4,49 @@
   "audience": "team",
   "style": "structured",
   "tone": "technical",
-  "generated_at": "2026-04-23T20:01:15.541307+00:00",
+  "generated_at": "2026-04-24T19:19:34.298278+00:00",
   "executive_summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.",
   "next_steps": [
     "Review the evaluation metrics and compare them to the project objective.",
     "Investigate the highest-impact quality issues before operational use.",
     "Revise the report draft with domain conclusions, caveats, and stakeholder recommendations."
   ],
-  "draft_markdown": "# Analysis Report for iris.csv\n\n## Executive Summary\nSelected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.\n\n## Dataset Overview\nDataset contains 5 column(s) with 0 column(s) containing nulls.\n\n- Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv\n- Rows sampled: 6\n- Numeric columns: 4\n- Categorical columns: 1\n\n## Data Quality\nData quality validation was not run in this session.\n\n## Preprocessing\nPreprocessing completed and produced a modeling dataset.\n\n## Model Training\nSelected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species.\n\n- task_type: classification\n- n_samples: 6\n- n_features: 4\n- training_time_seconds: 2.18\n- model_file_id: model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib\n\n## Evaluation\nEvaluation completed.\n\n## Recommendations\n- Review the evaluation metrics and compare them to the project objective.\n- Investigate the highest-impact quality issues before operational use.\n- Revise the report draft with domain conclusions, caveats, and stakeholder recommendations.",
+  "draft_markdown": "# Analysis Report for iris.csv\n\n## Executive Summary\nSelected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.\n\n## Abstract\nSelected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.\n\nKey points considered in this section include:\n\n- Summarizes the objective, pipeline stages, and most important reported findings.\n- Intended to give a reader a complete high-level understanding before reviewing the technical sections.\n\n## Introduction\nThis report documents the analytical workflow applied to the selected dataset and explains how the resulting outputs support model development and evaluation. The overall goal is to move from raw uploaded data to an interpretable technical narrative that captures data readiness, modeling decisions, and measured performance.\n\nKey points considered in this section include:\n\n- Establishes the project goal and analytical scope.\n- Explains why a staged pipeline is useful for data and model governance.\n\n## Data Description\nThe dataset snapshot used for reporting contains 5 column(s), including 4 numeric feature(s) and 1 categorical feature(s). 0 column(s) were observed with missing values in the stored schema profile.\n\nKey points considered in this section include:\n\n- Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv\n- Rows sampled: 6\n- Numeric columns: 4\n- Categorical columns: 1\n\n## Methodology\nThe workflow used a multi-stage machine learning pipeline covering preprocessing, model training, and evaluation. This structure supports reproducibility by separating data preparation, model selection, and performance measurement into explicit stages.\n\nKey points considered in this section include:\n\n- Data profiling and quality signals were used to characterize the dataset before model interpretation.\n- Preprocessing outputs were incorporated where available to explain the transformation pipeline.\n- Training and evaluation artifacts were combined into a single end-to-end narrative.\n\n## Data Quality\nData quality validation was not run in this session.\n\n## Preprocessing\nPreprocessing completed and produced a modeling dataset.\n\n## Model Training\nSelected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species.\n\nKey points considered in this section include:\n\n- task_type: classification\n- n_samples: 6\n- n_features: 4\n- training_time_seconds: 2.18\n- model_file_id: model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib\n\n## Results\nEvaluation completed.\n\n## Discussion\nThe current outputs suggest how the chosen model performed under the available data and preprocessing configuration. Interpretation should consider dataset coverage, feature quality, class balance, and the scope of the evaluation metrics that were computed.\n\nKey points considered in this section include:\n\n- Connect the quantitative outputs to the project objective.\n- Explain whether the reported metrics appear strong enough for the intended use case.\n- Highlight tradeoffs between model simplicity, interpretability, and measured performance.\n\n## Limitations\nThis report is constrained by the artifacts and metrics available from the executed pipeline. If data quality checks, preprocessing logs, or broader validation experiments are missing, the conclusions should be treated as provisional.\n\nKey points considered in this section include:\n\n- Limited artifact availability can reduce the depth of interpretation.\n- A single reported run may not capture run-to-run variance or deployment robustness.\n- Additional validation, ablation studies, and stakeholder review may still be needed.\n\n## Conclusion\nOverall, the available pipeline outputs provide a structured basis for documenting the dataset, the modeling workflow, and the observed performance. The final suitability of the solution depends on the business objective, the trustworthiness of the underlying data, and whether the measured results generalize beyond the current run.\n\nKey points considered in this section include:\n\n- Review the evaluation metrics and compare them to the project objective.\n- Investigate the highest-impact quality issues before operational use.\n- Revise the report draft with domain conclusions, caveats, and stakeholder recommendations.\n\n## Recommendations\n- Review the evaluation metrics and compare them to the project objective.\n- Investigate the highest-impact quality issues before operational use.\n- Revise the report draft with domain conclusions, caveats, and stakeholder recommendations.",
+  "latex_source": "\\documentclass[11pt]{article}\n\\usepackage[margin=1in]{geometry}\n\\usepackage[T1]{fontenc}\n\\usepackage[utf8]{inputenc}\n\\usepackage{lmodern}\n\\usepackage{microtype}\n\\usepackage{enumitem}\n\\usepackage{xcolor}\n\\setlist[itemize]{leftmargin=1.5em}\n\\title{Analysis Report for iris.csv}\n\\date{}\n\\begin{document}\n\\maketitle\n\n\n\\section{Executive Summary}\nSelected model: LogisticRegression. Validation f1\\_macro: 1.0000. Target column: species. Evaluation completed.\n\n\\section{Abstract}\nSelected model: LogisticRegression. Validation f1\\_macro: 1.0000. Target column: species. Evaluation completed.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item Summarizes the objective, pipeline stages, and most important reported findings.\n\\item Intended to give a reader a complete high-level understanding before reviewing the technical sections.\n\\end{itemize}\n\n\n\\section{Introduction}\nThis report documents the analytical workflow applied to the selected dataset and explains how the resulting outputs support model development and evaluation. The overall goal is to move from raw uploaded data to an interpretable technical narrative that captures data readiness, modeling decisions, and measured performance.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item Establishes the project goal and analytical scope.\n\\item Explains why a staged pipeline is useful for data and model governance.\n\\end{itemize}\n\n\n\\section{Data Description}\nThe dataset snapshot used for reporting contains 5 column(s), including 4 numeric feature(s) and 1 categorical feature(s). 0 column(s) were observed with missing values in the stored schema profile.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv\n\\item Rows sampled: 6\n\\item Numeric columns: 4\n\\item Categorical columns: 1\n\\end{itemize}\n\n\n\\section{Methodology}\nThe workflow used a multi-stage machine learning pipeline covering preprocessing, model training, and evaluation. This structure supports reproducibility by separating data preparation, model selection, and performance measurement into explicit stages.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item Data profiling and quality signals were used to characterize the dataset before model interpretation.\n\\item Preprocessing outputs were incorporated where available to explain the transformation pipeline.\n\\item Training and evaluation artifacts were combined into a single end-to-end narrative.\n\\end{itemize}\n\n\n\\section{Data Quality}\nData quality validation was not run in this session.\n\n\\section{Preprocessing}\nPreprocessing completed and produced a modeling dataset.\n\n\\section{Model Training}\nSelected model: LogisticRegression. Validation f1\\_macro: 1.0000. Target column: species.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item task\\_type: classification\n\\item n\\_samples: 6\n\\item n\\_features: 4\n\\item training\\_time\\_seconds: 2.18\n\\item model\\_file\\_id: model\\_210aeecd3ab54f788b3f64f732930cc8.csv.joblib\n\\end{itemize}\n\n\n\\section{Results}\nEvaluation completed.\n\n\\section{Discussion}\nThe current outputs suggest how the chosen model performed under the available data and preprocessing configuration. Interpretation should consider dataset coverage, feature quality, class balance, and the scope of the evaluation metrics that were computed.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item Connect the quantitative outputs to the project objective.\n\\item Explain whether the reported metrics appear strong enough for the intended use case.\n\\item Highlight tradeoffs between model simplicity, interpretability, and measured performance.\n\\end{itemize}\n\n\n\\section{Limitations}\nThis report is constrained by the artifacts and metrics available from the executed pipeline. If data quality checks, preprocessing logs, or broader validation experiments are missing, the conclusions should be treated as provisional.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item Limited artifact availability can reduce the depth of interpretation.\n\\item A single reported run may not capture run-to-run variance or deployment robustness.\n\\item Additional validation, ablation studies, and stakeholder review may still be needed.\n\\end{itemize}\n\n\n\\section{Conclusion}\nOverall, the available pipeline outputs provide a structured basis for documenting the dataset, the modeling workflow, and the observed performance. The final suitability of the solution depends on the business objective, the trustworthiness of the underlying data, and whether the measured results generalize beyond the current run.\n\nKey points considered in this section include:\n\n\\begin{itemize}\n\\item Review the evaluation metrics and compare them to the project objective.\n\\item Investigate the highest-impact quality issues before operational use.\n\\item Revise the report draft with domain conclusions, caveats, and stakeholder recommendations.\n\\end{itemize}\n\n\n\\section{Recommendations}\n\\begin{itemize}\n\\item Review the evaluation metrics and compare them to the project objective.\n\\item Investigate the highest-impact quality issues before operational use.\n\\item Revise the report draft with domain conclusions, caveats, and stakeholder recommendations.\n\\end{itemize}\n\n\n\\end{document}\n",
   "sections": [
     {
-      "title": "Dataset Overview",
-      "summary": "Dataset contains 5 column(s) with 0 column(s) containing nulls.",
+      "title": "Abstract",
+      "summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.",
+      "bullets": [
+        "Summarizes the objective, pipeline stages, and most important reported findings.",
+        "Intended to give a reader a complete high-level understanding before reviewing the technical sections."
+      ],
+      "data": {
+        "dataset_id": "210aeecd3ab54f788b3f64f732930cc8.csv",
+        "audience": "team",
+        "tone": "technical"
+      }
+    },
+    {
+      "title": "Introduction",
+      "summary": "This report documents the analytical workflow applied to the selected dataset and explains how the resulting outputs support model development and evaluation. The overall goal is to move from raw uploaded data to an interpretable technical narrative that captures data readiness, modeling decisions, and measured performance.",
+      "bullets": [
+        "Establishes the project goal and analytical scope.",
+        "Explains why a staged pipeline is useful for data and model governance."
+      ],
+      "data": {
+        "user_goal": "reporting_from_pipeline_outputs",
+        "pipeline_agents": [
+          "supervisor",
+          "data_preprocessing_agent",
+          "model_training_agent",
+          "evaluation_agent"
+        ]
+      }
+    },
+    {
+      "title": "Data Description",
+      "summary": "The dataset snapshot used for reporting contains 5 column(s), including 4 numeric feature(s) and 1 categorical feature(s). 0 column(s) were observed with missing values in the stored schema profile.",
       "bullets": [
         "Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv",
         "Rows sampled: 6",
@@ -39,7 +70,7 @@
             "column_family": "numeric",
             "non_null_count": 6,
             "null_count": 0,
-            "null_ratio": 0.0,
+            "null_ratio": 0,
             "unique_count": 6,
             "sample_values": [
               "5.1",
@@ -124,7 +155,7 @@
             "column_family": "numeric",
             "non_null_count": 6,
             "null_count": 0,
-            "null_ratio": 0.0,
+            "null_ratio": 0,
             "unique_count": 5,
             "sample_values": [
               "3.5",
@@ -137,7 +168,7 @@
               "min": 2.2,
               "max": 3.5,
               "mean": 2.9,
-              "median": 3.0
+              "median": 3
             },
             "numeric_distribution": [
               {
@@ -209,7 +240,7 @@
             "column_family": "numeric",
             "non_null_count": 6,
             "null_count": 0,
-            "null_ratio": 0.0,
+            "null_ratio": 0,
             "unique_count": 4,
             "sample_values": [
               "1.4",
@@ -221,7 +252,7 @@
               "min": 1.4,
               "max": 5.4,
               "mean": 3.55,
-              "median": 4.0
+              "median": 4
             },
             "numeric_distribution": [
               {
@@ -245,12 +276,12 @@
               {
                 "label": "2.6-3.0",
                 "start": 2.6,
-                "end": 3.0,
+                "end": 3,
                 "count": 0
               },
               {
                 "label": "3.0-3.4",
-                "start": 3.0,
+                "start": 3,
                 "end": 3.4,
                 "count": 0
               },
@@ -275,12 +306,12 @@
               {
                 "label": "4.6-5.0",
                 "start": 4.6,
-                "end": 5.0,
+                "end": 5,
                 "count": 0
               },
               {
                 "label": "5.0-5.4",
-                "start": 5.0,
+                "start": 5,
                 "end": 5.4,
                 "count": 2
               }
@@ -293,7 +324,7 @@
             "column_family": "numeric",
             "non_null_count": 6,
             "null_count": 0,
-            "null_ratio": 0.0,
+            "null_ratio": 0,
             "unique_count": 5,
             "sample_values": [
               "0.2",
@@ -378,7 +409,7 @@
             "column_family": "categorical",
             "non_null_count": 6,
             "null_count": 0,
-            "null_ratio": 0.0,
+            "null_ratio": 0,
             "unique_count": 3,
             "sample_values": [
               "setosa",
@@ -407,6 +438,91 @@
           "Profile is sample-based, using the first N rows rather than the full dataset.",
           "Rows sampled: 6"
         ]
+      }
+    },
+    {
+      "title": "Methodology",
+      "summary": "The workflow used a multi-stage machine learning pipeline covering preprocessing, model training, and evaluation. This structure supports reproducibility by separating data preparation, model selection, and performance measurement into explicit stages.",
+      "bullets": [
+        "Data profiling and quality signals were used to characterize the dataset before model interpretation.",
+        "Preprocessing outputs were incorporated where available to explain the transformation pipeline.",
+        "Training and evaluation artifacts were combined into a single end-to-end narrative."
+      ],
+      "data": {
+        "preprocessing": {
+          "rows_input": 6,
+          "rows_output": 6,
+          "columns_input": 5,
+          "columns_output": 5,
+          "transformations_applied": [
+            "scale_standard"
+          ],
+          "preprocessing_log": [
+            {
+              "column": "sepal_length",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=5.6, std=0.5215)"
+            },
+            {
+              "column": "sepal_width",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=2.9, std=0.5441)"
+            },
+            {
+              "column": "petal_length",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=3.55, std=1.759)"
+            },
+            {
+              "column": "petal_width",
+              "action": "standard_scale",
+              "detail": "Standardized (mean=1.133, std=0.8477)"
+            }
+          ],
+          "preprocessed_file_id": "preprocessed_210aeecd3ab54f788b3f64f732930cc8.csv",
+          "target_summary": {
+            "target_column": "species",
+            "total_values": 6,
+            "class_distribution": {
+              "setosa": 0.3333,
+              "virginica": 0.3333,
+              "versicolor": 0.3333
+            }
+          }
+        },
+        "training": {
+          "task_type": "classification",
+          "target_column": "species",
+          "target_inferred": false,
+          "n_samples": 6,
+          "n_features": 4,
+          "metric": "f1_macro",
+          "cv_folds": 2,
+          "chosen_model": "LogisticRegression",
+          "best_params": {
+            "C": 0.0745934328572655
+          },
+          "cv_score": 1,
+          "candidates_evaluated": [
+            {
+              "model": "LogisticRegression",
+              "cv_score": 1,
+              "n_trials": 5
+            },
+            {
+              "model": "RandomForestClassifier",
+              "cv_score": 1,
+              "n_trials": 5
+            }
+          ],
+          "model_file_id": "model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib",
+          "training_time_seconds": 2.18
+        },
+        "evaluation": {
+          "agent": "evaluation_agent",
+          "step": "evaluate_classification_model",
+          "message": "Step completed by default runtime handler"
+        }
       }
     },
     {
@@ -501,7 +617,7 @@
       }
     },
     {
-      "title": "Evaluation",
+      "title": "Results",
       "summary": "Evaluation completed.",
       "bullets": [],
       "data": {
@@ -509,6 +625,39 @@
         "step": "evaluate_classification_model",
         "message": "Step completed by default runtime handler"
       }
+    },
+    {
+      "title": "Discussion",
+      "summary": "The current outputs suggest how the chosen model performed under the available data and preprocessing configuration. Interpretation should consider dataset coverage, feature quality, class balance, and the scope of the evaluation metrics that were computed.",
+      "bullets": [
+        "Connect the quantitative outputs to the project objective.",
+        "Explain whether the reported metrics appear strong enough for the intended use case.",
+        "Highlight tradeoffs between model simplicity, interpretability, and measured performance."
+      ],
+      "data": {
+        "training_summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species.",
+        "evaluation_summary": "Evaluation completed."
+      }
+    },
+    {
+      "title": "Limitations",
+      "summary": "This report is constrained by the artifacts and metrics available from the executed pipeline. If data quality checks, preprocessing logs, or broader validation experiments are missing, the conclusions should be treated as provisional.",
+      "bullets": [
+        "Limited artifact availability can reduce the depth of interpretation.",
+        "A single reported run may not capture run-to-run variance or deployment robustness.",
+        "Additional validation, ablation studies, and stakeholder review may still be needed."
+      ],
+      "data": {}
+    },
+    {
+      "title": "Conclusion",
+      "summary": "Overall, the available pipeline outputs provide a structured basis for documenting the dataset, the modeling workflow, and the observed performance. The final suitability of the solution depends on the business objective, the trustworthiness of the underlying data, and whether the measured results generalize beyond the current run.",
+      "bullets": [
+        "Review the evaluation metrics and compare them to the project objective.",
+        "Investigate the highest-impact quality issues before operational use.",
+        "Revise the report draft with domain conclusions, caveats, and stakeholder recommendations."
+      ],
+      "data": {}
     }
   ],
   "artifacts": [],
@@ -531,7 +680,7 @@
           "column_family": "numeric",
           "non_null_count": 6,
           "null_count": 0,
-          "null_ratio": 0.0,
+          "null_ratio": 0,
           "unique_count": 6,
           "sample_values": [
             "5.1",
@@ -616,7 +765,7 @@
           "column_family": "numeric",
           "non_null_count": 6,
           "null_count": 0,
-          "null_ratio": 0.0,
+          "null_ratio": 0,
           "unique_count": 5,
           "sample_values": [
             "3.5",
@@ -629,7 +778,7 @@
             "min": 2.2,
             "max": 3.5,
             "mean": 2.9,
-            "median": 3.0
+            "median": 3
           },
           "numeric_distribution": [
             {
@@ -701,7 +850,7 @@
           "column_family": "numeric",
           "non_null_count": 6,
           "null_count": 0,
-          "null_ratio": 0.0,
+          "null_ratio": 0,
           "unique_count": 4,
           "sample_values": [
             "1.4",
@@ -713,7 +862,7 @@
             "min": 1.4,
             "max": 5.4,
             "mean": 3.55,
-            "median": 4.0
+            "median": 4
           },
           "numeric_distribution": [
             {
@@ -737,12 +886,12 @@
             {
               "label": "2.6-3.0",
               "start": 2.6,
-              "end": 3.0,
+              "end": 3,
               "count": 0
             },
             {
               "label": "3.0-3.4",
-              "start": 3.0,
+              "start": 3,
               "end": 3.4,
               "count": 0
             },
@@ -767,12 +916,12 @@
             {
               "label": "4.6-5.0",
               "start": 4.6,
-              "end": 5.0,
+              "end": 5,
               "count": 0
             },
             {
               "label": "5.0-5.4",
-              "start": 5.0,
+              "start": 5,
               "end": 5.4,
               "count": 2
             }
@@ -785,7 +934,7 @@
           "column_family": "numeric",
           "non_null_count": 6,
           "null_count": 0,
-          "null_ratio": 0.0,
+          "null_ratio": 0,
           "unique_count": 5,
           "sample_values": [
             "0.2",
@@ -870,7 +1019,7 @@
           "column_family": "categorical",
           "non_null_count": 6,
           "null_count": 0,
-          "null_ratio": 0.0,
+          "null_ratio": 0,
           "unique_count": 3,
           "sample_values": [
             "setosa",
@@ -902,8 +1051,38 @@
     },
     "sections": [
       {
-        "title": "Dataset Overview",
-        "summary": "Dataset contains 5 column(s) with 0 column(s) containing nulls.",
+        "title": "Abstract",
+        "summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species. Evaluation completed.",
+        "bullets": [
+          "Summarizes the objective, pipeline stages, and most important reported findings.",
+          "Intended to give a reader a complete high-level understanding before reviewing the technical sections."
+        ],
+        "data": {
+          "dataset_id": "210aeecd3ab54f788b3f64f732930cc8.csv",
+          "audience": "team",
+          "tone": "technical"
+        }
+      },
+      {
+        "title": "Introduction",
+        "summary": "This report documents the analytical workflow applied to the selected dataset and explains how the resulting outputs support model development and evaluation. The overall goal is to move from raw uploaded data to an interpretable technical narrative that captures data readiness, modeling decisions, and measured performance.",
+        "bullets": [
+          "Establishes the project goal and analytical scope.",
+          "Explains why a staged pipeline is useful for data and model governance."
+        ],
+        "data": {
+          "user_goal": "reporting_from_pipeline_outputs",
+          "pipeline_agents": [
+            "supervisor",
+            "data_preprocessing_agent",
+            "model_training_agent",
+            "evaluation_agent"
+          ]
+        }
+      },
+      {
+        "title": "Data Description",
+        "summary": "The dataset snapshot used for reporting contains 5 column(s), including 4 numeric feature(s) and 1 categorical feature(s). 0 column(s) were observed with missing values in the stored schema profile.",
         "bullets": [
           "Dataset ID: 210aeecd3ab54f788b3f64f732930cc8.csv",
           "Rows sampled: 6",
@@ -927,7 +1106,7 @@
               "column_family": "numeric",
               "non_null_count": 6,
               "null_count": 0,
-              "null_ratio": 0.0,
+              "null_ratio": 0,
               "unique_count": 6,
               "sample_values": [
                 "5.1",
@@ -1012,7 +1191,7 @@
               "column_family": "numeric",
               "non_null_count": 6,
               "null_count": 0,
-              "null_ratio": 0.0,
+              "null_ratio": 0,
               "unique_count": 5,
               "sample_values": [
                 "3.5",
@@ -1025,7 +1204,7 @@
                 "min": 2.2,
                 "max": 3.5,
                 "mean": 2.9,
-                "median": 3.0
+                "median": 3
               },
               "numeric_distribution": [
                 {
@@ -1097,7 +1276,7 @@
               "column_family": "numeric",
               "non_null_count": 6,
               "null_count": 0,
-              "null_ratio": 0.0,
+              "null_ratio": 0,
               "unique_count": 4,
               "sample_values": [
                 "1.4",
@@ -1109,7 +1288,7 @@
                 "min": 1.4,
                 "max": 5.4,
                 "mean": 3.55,
-                "median": 4.0
+                "median": 4
               },
               "numeric_distribution": [
                 {
@@ -1133,12 +1312,12 @@
                 {
                   "label": "2.6-3.0",
                   "start": 2.6,
-                  "end": 3.0,
+                  "end": 3,
                   "count": 0
                 },
                 {
                   "label": "3.0-3.4",
-                  "start": 3.0,
+                  "start": 3,
                   "end": 3.4,
                   "count": 0
                 },
@@ -1163,12 +1342,12 @@
                 {
                   "label": "4.6-5.0",
                   "start": 4.6,
-                  "end": 5.0,
+                  "end": 5,
                   "count": 0
                 },
                 {
                   "label": "5.0-5.4",
-                  "start": 5.0,
+                  "start": 5,
                   "end": 5.4,
                   "count": 2
                 }
@@ -1181,7 +1360,7 @@
               "column_family": "numeric",
               "non_null_count": 6,
               "null_count": 0,
-              "null_ratio": 0.0,
+              "null_ratio": 0,
               "unique_count": 5,
               "sample_values": [
                 "0.2",
@@ -1266,7 +1445,7 @@
               "column_family": "categorical",
               "non_null_count": 6,
               "null_count": 0,
-              "null_ratio": 0.0,
+              "null_ratio": 0,
               "unique_count": 3,
               "sample_values": [
                 "setosa",
@@ -1295,6 +1474,91 @@
             "Profile is sample-based, using the first N rows rather than the full dataset.",
             "Rows sampled: 6"
           ]
+        }
+      },
+      {
+        "title": "Methodology",
+        "summary": "The workflow used a multi-stage machine learning pipeline covering preprocessing, model training, and evaluation. This structure supports reproducibility by separating data preparation, model selection, and performance measurement into explicit stages.",
+        "bullets": [
+          "Data profiling and quality signals were used to characterize the dataset before model interpretation.",
+          "Preprocessing outputs were incorporated where available to explain the transformation pipeline.",
+          "Training and evaluation artifacts were combined into a single end-to-end narrative."
+        ],
+        "data": {
+          "preprocessing": {
+            "rows_input": 6,
+            "rows_output": 6,
+            "columns_input": 5,
+            "columns_output": 5,
+            "transformations_applied": [
+              "scale_standard"
+            ],
+            "preprocessing_log": [
+              {
+                "column": "sepal_length",
+                "action": "standard_scale",
+                "detail": "Standardized (mean=5.6, std=0.5215)"
+              },
+              {
+                "column": "sepal_width",
+                "action": "standard_scale",
+                "detail": "Standardized (mean=2.9, std=0.5441)"
+              },
+              {
+                "column": "petal_length",
+                "action": "standard_scale",
+                "detail": "Standardized (mean=3.55, std=1.759)"
+              },
+              {
+                "column": "petal_width",
+                "action": "standard_scale",
+                "detail": "Standardized (mean=1.133, std=0.8477)"
+              }
+            ],
+            "preprocessed_file_id": "preprocessed_210aeecd3ab54f788b3f64f732930cc8.csv",
+            "target_summary": {
+              "target_column": "species",
+              "total_values": 6,
+              "class_distribution": {
+                "setosa": 0.3333,
+                "virginica": 0.3333,
+                "versicolor": 0.3333
+              }
+            }
+          },
+          "training": {
+            "task_type": "classification",
+            "target_column": "species",
+            "target_inferred": false,
+            "n_samples": 6,
+            "n_features": 4,
+            "metric": "f1_macro",
+            "cv_folds": 2,
+            "chosen_model": "LogisticRegression",
+            "best_params": {
+              "C": 0.0745934328572655
+            },
+            "cv_score": 1,
+            "candidates_evaluated": [
+              {
+                "model": "LogisticRegression",
+                "cv_score": 1,
+                "n_trials": 5
+              },
+              {
+                "model": "RandomForestClassifier",
+                "cv_score": 1,
+                "n_trials": 5
+              }
+            ],
+            "model_file_id": "model_210aeecd3ab54f788b3f64f732930cc8.csv.joblib",
+            "training_time_seconds": 2.18
+          },
+          "evaluation": {
+            "agent": "evaluation_agent",
+            "step": "evaluate_classification_model",
+            "message": "Step completed by default runtime handler"
+          }
         }
       },
       {
@@ -1389,7 +1653,7 @@
         }
       },
       {
-        "title": "Evaluation",
+        "title": "Results",
         "summary": "Evaluation completed.",
         "bullets": [],
         "data": {
@@ -1397,6 +1661,39 @@
           "step": "evaluate_classification_model",
           "message": "Step completed by default runtime handler"
         }
+      },
+      {
+        "title": "Discussion",
+        "summary": "The current outputs suggest how the chosen model performed under the available data and preprocessing configuration. Interpretation should consider dataset coverage, feature quality, class balance, and the scope of the evaluation metrics that were computed.",
+        "bullets": [
+          "Connect the quantitative outputs to the project objective.",
+          "Explain whether the reported metrics appear strong enough for the intended use case.",
+          "Highlight tradeoffs between model simplicity, interpretability, and measured performance."
+        ],
+        "data": {
+          "training_summary": "Selected model: LogisticRegression. Validation f1_macro: 1.0000. Target column: species.",
+          "evaluation_summary": "Evaluation completed."
+        }
+      },
+      {
+        "title": "Limitations",
+        "summary": "This report is constrained by the artifacts and metrics available from the executed pipeline. If data quality checks, preprocessing logs, or broader validation experiments are missing, the conclusions should be treated as provisional.",
+        "bullets": [
+          "Limited artifact availability can reduce the depth of interpretation.",
+          "A single reported run may not capture run-to-run variance or deployment robustness.",
+          "Additional validation, ablation studies, and stakeholder review may still be needed."
+        ],
+        "data": {}
+      },
+      {
+        "title": "Conclusion",
+        "summary": "Overall, the available pipeline outputs provide a structured basis for documenting the dataset, the modeling workflow, and the observed performance. The final suitability of the solution depends on the business objective, the trustworthiness of the underlying data, and whether the measured results generalize beyond the current run.",
+        "bullets": [
+          "Review the evaluation metrics and compare them to the project objective.",
+          "Investigate the highest-impact quality issues before operational use.",
+          "Revise the report draft with domain conclusions, caveats, and stakeholder recommendations."
+        ],
+        "data": {}
       }
     ],
     "artifacts": [],
@@ -1497,5 +1794,9 @@
         }
       }
     ]
-  }
+  },
+  "latex_compiler_available": false,
+  "latex_compiler": null,
+  "latex_compile_error": "No LaTeX compiler is installed on the backend.",
+  "compiled_pdf_file_id": null
 }
