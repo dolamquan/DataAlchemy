@@ -23,6 +23,7 @@ import {
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Progress } from "../components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ import {
 } from "../components/ui/table";
 import {
   AGENT_RUNTIME_STORAGE_KEY,
+  clearAgentRuntimeSnapshot,
   loadAgentRuntimeSnapshot,
   saveAgentRuntimeEvents,
   type AgentRuntimeSnapshot,
@@ -47,6 +49,7 @@ import {
 import {
   artifactDownloadUrl,
   authorizedWebsocketUrl,
+  resetSupervisorRuntime,
   type AgentRuntimeEvent,
   type CoordinatorExecutionResult,
   type ProjectPlanResponse,
@@ -65,6 +68,8 @@ interface AgentRecord {
   status: AgentStatus;
   lastTask: string;
   lastUpdated: string;
+  progressPercent?: number;
+  progressMessage?: string;
   outputs: string[];
   artifacts: AgentArtifact[];
   logs: Array<{ timestamp: string; message: string }>;
@@ -179,6 +184,12 @@ function artifactKey(artifact: AgentArtifact) {
 
 function latestEventForStep(events: AgentRuntimeEvent[], stepName: string) {
   return [...events].reverse().find((event) => event.step === stepName);
+}
+
+function latestProgressEvent(events: AgentRuntimeEvent[], agentId: string) {
+  return [...events].reverse().find(
+    (event) => event.agent === agentId && event.type === "step_progress" && typeof event.progress_percent === "number",
+  );
 }
 
 function stepStatusFromEvents(events: AgentRuntimeEvent[], step: ProjectPlanStep, snapshot: AgentRuntimeSnapshot | null) {
@@ -321,6 +332,7 @@ function buildAgents(snapshot: AgentRuntimeSnapshot | null, events: AgentRuntime
     const assignedSteps = planSteps.filter((step) => step.agent === agent.id);
     const agentEvents = events.filter((event) => event.agent === agent.id);
     const latestAgentEvent = agentEvents.at(-1);
+    const latestProgress = latestProgressEvent(events, agent.id);
     const activeStep = [...agentEvents].reverse().find((event) => event.type === "step_started");
     const failedStep = [...agentEvents].reverse().find((event) => event.type === "step_failed");
     const completedStep = [...agentEvents].reverse().find((event) => event.type === "step_completed");
@@ -375,6 +387,8 @@ function buildAgents(snapshot: AgentRuntimeSnapshot | null, events: AgentRuntime
       status,
       lastTask: lastTask ?? (snapshot ? "Waiting for assignment" : "No runtime snapshot"),
       lastUpdated: latestAgentEvent?.timestamp ?? timestamp,
+      progressPercent: latestProgress?.progress_percent,
+      progressMessage: latestProgress?.message,
       outputs: outputs.length > 0 ? outputs : ["No output reported yet"],
       artifacts: Array.from(new Map(artifacts.map((artifact) => [artifactKey(artifact), artifact])).values()),
       logs: activity
@@ -395,6 +409,7 @@ export function AgentsPage() {
   const [snapshot, setSnapshot] = useState<AgentRuntimeSnapshot | null>(() => loadAgentRuntimeSnapshot());
   const [events, setEvents] = useState<AgentRuntimeEvent[]>(() => loadAgentRuntimeSnapshot()?.events ?? []);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [stoppingRun, setStoppingRun] = useState(false);
 
   function refreshSnapshot() {
     const next = loadAgentRuntimeSnapshot();
@@ -449,6 +464,19 @@ export function AgentsPage() {
       socket?.close();
     };
   }, [snapshot?.sessionId]);
+
+  async function handleStopRun() {
+    setStoppingRun(true);
+    try {
+      await resetSupervisorRuntime();
+      clearAgentRuntimeSnapshot();
+      setSnapshot(null);
+      setEvents([]);
+      setSelectedAgent(null);
+    } finally {
+      setStoppingRun(false);
+    }
+  }
 
   const livePlan = useMemo(() => planFromEvents(events, snapshot), [events, snapshot]);
   const runtimeSnapshot = useMemo(
@@ -509,6 +537,12 @@ export function AgentsPage() {
             <ShieldCheck className="w-3 h-3" />
             {runtimeSnapshot?.sessionId ? `Session ${runtimeSnapshot.sessionId}` : "No session selected"}
           </Badge>
+          {runtimeSnapshot?.sessionId && (
+            <Button variant="outline" className="gap-2" onClick={() => void handleStopRun()} disabled={stoppingRun}>
+              <AlertTriangle className="w-4 h-4" />
+              {stoppingRun ? "Stopping Run..." : "Stop Current Run"}
+            </Button>
+          )}
           <Button variant="outline" className="gap-2" onClick={refreshSnapshot}>
             <RefreshCw className="w-4 h-4" />
             Refresh Runtime
@@ -640,6 +674,16 @@ export function AgentsPage() {
                     {agent.status}
                   </Badge>
                 </div>
+
+                {typeof agent.progressPercent === "number" && agent.status !== "idle" && (
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{agent.progressMessage ?? "In progress"}</span>
+                      <span>{agent.progressPercent}%</span>
+                    </div>
+                    <Progress value={agent.progressPercent} className="h-1.5" />
+                  </div>
+                )}
 
                 <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
                   <p className="truncate">Last task: {agent.lastTask}</p>
@@ -812,6 +856,15 @@ export function AgentsPage() {
                   </CardHeader>
                   <CardContent className="text-xs text-muted-foreground">
                     Last updated: {formatDate(selectedAgent.lastUpdated)}
+                    {typeof selectedAgent.progressPercent === "number" && (
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{selectedAgent.progressMessage ?? "In progress"}</span>
+                          <span>{selectedAgent.progressPercent}%</span>
+                        </div>
+                        <Progress value={selectedAgent.progressPercent} className="h-2" />
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

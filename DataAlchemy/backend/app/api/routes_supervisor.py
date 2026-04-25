@@ -10,9 +10,22 @@ from app.engine.schemas import (
     SupervisorResponse,
 )
 from app.engine.llm_client import LLMClientError
-from app.engine.supervisor import send_message, start_session
+from app.engine.supervisor import reset_user_runtime, send_message, start_session
 
 router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
+
+
+@router.post("/reset")
+async def supervisor_reset(current_user: dict = Depends(get_current_user)):
+    await reset_user_runtime(current_user["uid"])
+    log_user_activity(
+        owner_uid=current_user["uid"],
+        owner_email=current_user.get("email"),
+        activity_type="supervisor_reset",
+        status="completed",
+        resource_name="runtime",
+    )
+    return {"success": True}
 
 
 @router.post("/start", response_model=SupervisorResponse)

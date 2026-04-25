@@ -26,8 +26,10 @@ from typing import Any
 
 from app.core.settings import UPLOAD_DIR
 from app.db.models import get_upload_schema_by_file_id
+from app.engine.agent_events import publish_agent_event
 from app.engine.registry import get_agent_config
 from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.runtime_interrupt import UserInterruptRequested, raise_if_interrupted
 from app.services.schema_profiler import is_null_like, normalize_value, safe_open_csv
 from app.services.storage import resolve_upload_path_from_db
 
@@ -52,6 +54,26 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) ->
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+async def _publish_progress(
+    session_id: str | None,
+    *,
+    step: str,
+    percent: int,
+    message: str,
+) -> None:
+    await publish_agent_event(
+        session_id,
+        {
+            "type": "step_progress",
+            "step": step,
+            "agent": "data_preprocessing_agent",
+            "status": "in_progress",
+            "message": message,
+            "progress_percent": percent,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +467,7 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
     """Async handler registered with agent_runtime for 'data_preprocessing_agent'."""
     step = payload.get("step", "preprocess_data")
     dataset_id: str = payload.get("dataset_id", "")
+    session_id: str | None = payload.get("session_id")
     cfg = _resolve_config(payload.get("config") or {})
 
     # --- locate file, restoring from DB content if the upload file was removed ---
@@ -466,12 +489,23 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
     if not rows:
         return _failed(step, "CSV file contains no data rows.")
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
 
     rows_input = len(rows)
     columns_input = len(fieldnames)
     preprocessing_log: list[dict[str, str]] = []
     transformations_applied: list[str] = []
     rows_sampled = schema_profile.get("rows_sampled", rows_input)
+
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=10,
+        message=f"Loaded {rows_input} rows and {columns_input} columns for preprocessing.",
+    )
 
     # 1. Deduplication
     if cfg.get("drop_duplicates", True):
@@ -483,6 +517,16 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
                 "detail": f"Removed {removed} exact duplicate row(s)",
             })
             transformations_applied.append("drop_duplicates")
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=25,
+        message=f"Deduplication finished. Working set: {len(rows)} rows.",
+    )
 
     # 2. Drop columns
     explicit_drops: list[str] = list(cfg.get("drop_columns") or [])
@@ -498,6 +542,16 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
                 "detail": "Dropped (explicit request or auto-detected ID column)",
             })
         transformations_applied.append("drop_columns")
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=40,
+        message=f"Column pruning finished. {len(fieldnames)} columns remain.",
+    )
 
     # 3. Impute missing values
     rows, impute_log = impute_missing(
@@ -510,6 +564,16 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
     if impute_log:
         preprocessing_log.extend(impute_log)
         transformations_applied.append("impute_missing")
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=55,
+        message="Missing-value imputation completed.",
+    )
 
     # 4. Date feature engineering (before encoding, so new int columns skip encoding)
     if cfg.get("feature_engineering", False):
@@ -517,6 +581,16 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
         if date_log:
             preprocessing_log.extend(date_log)
             transformations_applied.append("date_decomposition")
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=65,
+        message="Feature engineering stage completed.",
+    )
 
     # 5. Encode categorical columns
     target_column: str | None = cfg.get("target_column")
@@ -531,6 +605,16 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
     if encode_log:
         preprocessing_log.extend(encode_log)
         transformations_applied.append("encode_categorical")
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=78,
+        message="Categorical encoding completed.",
+    )
 
     # 6. Scale numeric columns
     scaler = str(cfg.get("scaler", "standard"))
@@ -538,9 +622,29 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
     if scale_log:
         preprocessing_log.extend(scale_log)
         transformations_applied.append(f"scale_{scaler}")
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=88,
+        message=f"Scaling completed with {scaler} scaler.",
+    )
 
     # 7. Target summary (informational)
     target_info = separate_target(rows, fieldnames, target_column)
+    try:
+        raise_if_interrupted(session_id, context="Preprocessing interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=95,
+        message="Preparing output files.",
+    )
 
     # --- save preprocessed CSV ---
     out_filename = f"preprocessed_{dataset_id}"

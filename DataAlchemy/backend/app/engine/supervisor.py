@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import uuid
@@ -11,10 +12,12 @@ from fastapi import HTTPException
 
 from app.db.models import get_upload_record_by_file_id, get_upload_schema_by_file_id
 from app.core.settings import UPLOAD_DIR
+from app.engine.agent_events import clear_agent_event_history, publish_agent_event
 from app.engine.coordinator import Coordinator
 from app.engine.llm_client import call_supervisor_llm
 from app.engine.registry import get_agent_config
 from app.engine.schemas import PlanStep, ProjectPlanResponse, SupervisorResponse
+from app.services.runtime_interrupt import clear_interrupt, request_interrupt
 
 _WEEK_COLUMN_RE = re.compile(r"^week_(\d+)$", re.IGNORECASE)
 _TARGET_NAMES = {
@@ -38,12 +41,14 @@ _TARGET_NAMES = {
 # ========== Session Store ==========
 
 _sessions: dict[str, dict[str, Any]] = {}
+_execution_tasks: dict[str, asyncio.Task[Any]] = {}
 # Key: session_id
 # Value: {
 #     "dataset_id": str,
 #     "system_prompt": str,          # base prompt + schema context (built at session start)
 #     "messages": list[dict],        # OpenAI messages format
 #     "plan": ProjectPlanResponse | None,
+#     "execution": dict | None,
 #     "finished": bool,
 #     "agent_config": dict,          # supervisor config from agents.yaml
 # }
@@ -119,6 +124,27 @@ def user_can_access_session(session_id: str, user_uid: str) -> bool:
     return session.get("user_uid") == user_uid
 
 
+async def reset_user_runtime(user_uid: str) -> None:
+    owned_session_ids = [session_id for session_id, session in _sessions.items() if session.get("user_uid") == user_uid]
+
+    for session_id in owned_session_ids:
+        request_interrupt(session_id)
+        task = _execution_tasks.pop(session_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+
+    for session_id in owned_session_ids:
+        _sessions.pop(session_id, None)
+        clear_agent_event_history(session_id)
+        clear_interrupt(session_id)
+
+
 async def start_session(*, dataset_id: str, user_message: str, user_uid: str) -> SupervisorResponse:
     """Create a new session, load schema, send user's request to LLM, return draft plan."""
 
@@ -164,7 +190,7 @@ async def start_session(*, dataset_id: str, user_message: str, user_uid: str) ->
         }],
     })
 
-    response = await _process_result(session_id, dataset_id, result)
+    response = await _process_result(session_id, dataset_id, user_uid, result)
 
     _sessions[session_id] = {
         "user_uid": user_uid,
@@ -172,6 +198,7 @@ async def start_session(*, dataset_id: str, user_message: str, user_uid: str) ->
         "system_prompt": full_system,
         "messages": messages,
         "plan": response.plan,
+        "execution": response.execution,
         "finished": response.type == "final",
         "agent_config": agent_config,
     }
@@ -235,9 +262,10 @@ async def send_message(
     })
 
     dataset_id = session["dataset_id"]
-    response = await _process_result(session_id, dataset_id, result)
+    response = await _process_result(session_id, dataset_id, user_uid, result)
 
     session["plan"] = response.plan
+    session["execution"] = response.execution
     if response.type == "final":
         session["finished"] = True
 
@@ -247,12 +275,13 @@ async def send_message(
 async def _process_result(
     session_id: str,
     dataset_id: str,
+    user_uid: str,
     result: dict[str, Any],
 ) -> SupervisorResponse:
     """Convert an LLM tool call result into a SupervisorResponse."""
 
     if result["tool"] == "propose_plan":
-        plan = _build_plan_response(dataset_id, result["input"])
+        plan = _build_plan_response(dataset_id, user_uid, result["input"])
         return SupervisorResponse(
             session_id=session_id,
             type="proposal",
@@ -262,15 +291,15 @@ async def _process_result(
         )
 
     if result["tool"] == "finalize_plan":
-        plan = _build_plan_response(dataset_id, result["input"])
-        coordinator = Coordinator()
-        execution = await coordinator.execute_plan(plan=plan, dataset_id=dataset_id, session_id=session_id)
+        plan = _build_plan_response(dataset_id, user_uid, result["input"])
+        task = asyncio.create_task(_run_plan_execution(session_id=session_id, dataset_id=dataset_id, plan=plan))
+        _execution_tasks[session_id] = task
         return SupervisorResponse(
             session_id=session_id,
             type="final",
-            message=None,
+            message="Plan confirmed. Opening the live agent runtime.",
             plan=plan,
-            execution=execution,
+            execution=None,
         )
 
     raise RuntimeError(f"Unexpected tool: {result['tool']}")
@@ -278,10 +307,11 @@ async def _process_result(
 
 def _build_plan_response(
     dataset_id: str,
+    user_uid: str,
     tool_input: dict[str, Any],
 ) -> ProjectPlanResponse:
     """Validate and convert the LLM's function output into a ProjectPlanResponse."""
-    target_column = _infer_plan_target_column(dataset_id, tool_input["user_goal"])
+    target_column = _infer_plan_target_column(dataset_id, tool_input["user_goal"], user_uid)
     steps = [
         PlanStep(
             step=s["step"],
@@ -303,6 +333,51 @@ def _build_plan_response(
         summary=tool_input["summary"],
         plan=steps,
     )
+
+
+async def _run_plan_execution(
+    *,
+    session_id: str,
+    dataset_id: str,
+    plan: ProjectPlanResponse,
+) -> None:
+    try:
+        clear_interrupt(session_id)
+        coordinator = Coordinator()
+        execution = await coordinator.execute_plan(plan=plan, dataset_id=dataset_id, session_id=session_id)
+        session = _sessions.get(session_id)
+        if session is not None:
+            session["execution"] = execution
+    except Exception as exc:
+        await publish_agent_event(
+            session_id,
+            {
+                "type": "coordinator_failed",
+                "agent": "coordinator",
+                "status": "failed",
+                "message": f"Coordinator crashed before completing the plan: {exc}",
+            },
+        )
+        session = _sessions.get(session_id)
+        if session is not None:
+            session["execution"] = {
+                "status": "failed",
+                "completed_steps": [],
+                "failed_step": None,
+                "results": [],
+                "artifacts": [],
+                "dashboard_updates": [
+                    {
+                        "step": None,
+                        "agent": "coordinator",
+                        "status": "failed",
+                        "message": f"Coordinator crashed before completing the plan: {exc}",
+                    }
+                ],
+            }
+    finally:
+        _execution_tasks.pop(session_id, None)
+        clear_interrupt(session_id)
 
 
 def _normalize_step_agent(step_name: str, proposed_agent: Any, user_goal: str) -> str:
@@ -370,7 +445,7 @@ def _normalize_step_config(
     return config or None
 
 
-def _infer_plan_target_column(dataset_id: str, user_goal: str) -> str | None:
+def _infer_plan_target_column(dataset_id: str, user_goal: str, user_uid: str) -> str | None:
     if user_goal not in {"train_model", "preprocess_and_train", "full_pipeline", "evaluate_model"}:
         return None
 

@@ -106,6 +106,42 @@ def _content_contains_file_id(value: Any, file_id: str) -> bool:
     return value == file_id
 
 
+def _artifact_matches_owned_upload(file_id: str, owned_upload_ids: list[str]) -> bool:
+    """Allow generated artifacts that are deterministically derived from an owned upload."""
+    upload_ids = set(owned_upload_ids)
+    upload_stems = {Path(upload_id).stem for upload_id in owned_upload_ids}
+
+    if file_id in upload_ids or Path(file_id).stem in upload_stems:
+        return True
+
+    for upload_id in upload_ids:
+        if file_id == f"preprocessed_{upload_id}":
+            return True
+        if file_id == f"preprocessed_{upload_id}.csv":
+            return True
+        if file_id == f"model_{upload_id}":
+            return True
+        if file_id == f"model_{upload_id}.joblib":
+            return True
+
+    derived_stem_prefixes = (
+        "preprocessing_log_",
+        "training_report_",
+        "evaluation_report_",
+        "quality_report_",
+        "report_",
+    )
+    for prefix in derived_stem_prefixes:
+        if not file_id.startswith(prefix):
+            continue
+        remainder = file_id[len(prefix):]
+        remainder_stem = Path(remainder).stem
+        if remainder_stem in upload_stems:
+            return True
+
+    return False
+
+
 def create_upload_record(
     *,
     owner_uid: str | None,
@@ -355,6 +391,14 @@ def user_can_access_artifact(file_id: str, *, owner_uid: str | None) -> bool:
             """,
             (owner_uid,),
         ).fetchall()
+        owned_upload_rows = conn.execute(
+            """
+            SELECT file_id
+            FROM uploads
+            WHERE owner_uid = ?
+            """,
+            (owner_uid,),
+        ).fetchall()
 
     for row in report_rows:
         if row["file_id"] == file_id:
@@ -365,6 +409,11 @@ def user_can_access_artifact(file_id: str, *, owner_uid: str | None) -> bool:
             continue
         if _content_contains_file_id(content, file_id):
             return True
+
+    owned_upload_ids = [str(row["file_id"]) for row in owned_upload_rows]
+    if _artifact_matches_owned_upload(file_id, owned_upload_ids):
+        return True
+
     return False
 
 

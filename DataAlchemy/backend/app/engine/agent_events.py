@@ -53,3 +53,8 @@ def unsubscribe_agent_events(session_id: str, queue: asyncio.Queue[AgentEvent]) 
     subscribers.discard(queue)
     if not subscribers:
         _subscribers.pop(session_id, None)
+
+
+def clear_agent_event_history(session_id: str) -> None:
+    _history.pop(session_id, None)
+    _subscribers.pop(session_id, None)

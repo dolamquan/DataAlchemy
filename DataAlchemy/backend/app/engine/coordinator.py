@@ -47,7 +47,12 @@ class Coordinator:
 
         for step in plan.plan:
             step_name = step.step
-            payload = self._build_step_payload(dataset_id=dataset_id, step=step, prior_results=results)
+            payload = self._build_step_payload(
+                dataset_id=dataset_id,
+                step=step,
+                prior_results=results,
+                session_id=session_id,
+            )
             repair_attempts = 0
 
             while True:
@@ -335,9 +340,16 @@ class Coordinator:
         }
 
     @staticmethod
-    def _build_step_payload(*, dataset_id: str, step: PlanStep, prior_results: list[dict[str, Any]]) -> dict[str, Any]:
+    def _build_step_payload(
+        *,
+        dataset_id: str,
+        step: PlanStep,
+        prior_results: list[dict[str, Any]],
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
         return {
             "dataset_id": dataset_id,
+            "session_id": session_id,
             "step": step.step,
             "agent": step.agent,
             "config": step.config or {},

@@ -39,11 +39,33 @@ from xgboost import XGBClassifier, XGBRegressor
 
 from app.core.settings import UPLOAD_DIR
 from app.db.models import get_upload_schema_by_file_id
+from app.engine.agent_events import publish_agent_event
 from app.engine.registry import get_agent_config
 from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.runtime_interrupt import UserInterruptRequested, is_interrupted, raise_if_interrupted
 from app.services.storage import resolve_upload_path_from_db
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+
+async def _publish_progress(
+    session_id: str | None,
+    *,
+    step: str,
+    percent: int,
+    message: str,
+) -> None:
+    await publish_agent_event(
+        session_id,
+        {
+            "type": "step_progress",
+            "step": step,
+            "agent": "model_training_agent",
+            "status": "in_progress",
+            "message": message,
+            "progress_percent": percent,
+        },
+    )
 
 # ---------------------------------------------------------------------------
 # Known target-column names (ordered by priority)
@@ -403,11 +425,13 @@ def _run_hpo(
     n_trials: int,
     cv: Any,
     random_state: int,
+    session_id: str | None = None,
     timeout: float | None = None,
 ) -> tuple[dict[str, Any], float]:
     """Run Optuna HPO for one candidate model; return (best_params, best_cv_score)."""
 
     def objective(trial: optuna.Trial) -> float:
+        raise_if_interrupted(session_id, context="Training interrupted by user.")
         params = _get_search_space(trial, model_name)
         model = _build_model(model_name, params, random_state)
         scores = cross_val_score(model, X, y, cv=cv, scoring=metric, error_score=0.0)
@@ -416,7 +440,15 @@ def _run_hpo(
     pruner = optuna.pruners.MedianPruner(n_startup_trials=5)
     sampler = optuna.samplers.TPESampler(seed=random_state)
     study = optuna.create_study(direction="maximize", pruner=pruner, sampler=sampler)
-    study.optimize(objective, n_trials=n_trials, timeout=timeout, show_progress_bar=False)
+    study.optimize(
+        objective,
+        n_trials=n_trials,
+        timeout=timeout,
+        show_progress_bar=False,
+        callbacks=[lambda study, trial: study.stop() if is_interrupted(session_id) else None],
+    )
+
+    raise_if_interrupted(session_id, context="Training interrupted by user.")
 
     return study.best_params, study.best_value
 
@@ -449,6 +481,7 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
     """Async handler registered with agent_runtime for 'model_training_agent'."""
     step: str = payload.get("step", "train_model")
     dataset_id: str = payload.get("dataset_id", "")
+    session_id: str | None = payload.get("session_id")
     cfg = _resolve_config(payload.get("config") or {})
     prior_results: list[dict[str, Any]] = payload.get("prior_results") or []
 
@@ -456,6 +489,10 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         csv_path = _locate_training_csv(dataset_id, prior_results)
     except ValueError as exc:
+        return _failed(step, str(exc))
+    try:
+        raise_if_interrupted(session_id, context="Training interrupted by user.")
+    except UserInterruptRequested as exc:
         return _failed(step, str(exc))
 
     # --- load schema (needed for target inference) ---
@@ -471,6 +508,12 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
     if df.empty:
         return _failed(step, "CSV file contains no data rows.")
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=10,
+        message=f"Loaded training data with {len(df)} rows and {len(df.columns)} columns.",
+    )
 
     # --- resolve target column ---
     target_column: str | None = cfg.get("target_column")
@@ -488,6 +531,16 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
             f"Target column '{target_column}' not found in dataset. "
             f"Available columns: {sorted(df.columns.tolist())}",
         )
+    try:
+        raise_if_interrupted(session_id, context="Training interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=20,
+        message=f"Using target column '{target_column}' ({'inferred' if target_inferred else 'configured'}).",
+    )
 
     # --- split features and target ---
     X, y = _split_features_target(df, target_column)
@@ -503,11 +556,23 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
     # --- detect task type and metric ---
     task_type: str = _detect_task_type(y, cfg.get("task_type"))
     metric: str = cfg.get("metric") or _pick_metric(task_type, y)
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=30,
+        message=f"Prepared feature matrix with {n_samples} rows, {n_features} features; task={task_type}.",
+    )
 
     # --- select candidates ---
     model_override: str | None = cfg.get("model")
     candidates: list[str] = [model_override] if model_override else _select_candidate_models(
         task_type, n_samples, n_features
+    )
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=40,
+        message=f"Selected {len(candidates)} training candidate(s): {', '.join(candidates)}.",
     )
 
     # --- build CV ---
@@ -532,9 +597,17 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
     best_params: dict[str, Any] = {}
     best_score = float("-inf")
 
-    for model_name in candidates:
+    total_candidates = max(len(candidates), 1)
+    for index, model_name in enumerate(candidates, start=1):
+        base_percent = 45 + round(((index - 1) / total_candidates) * 30)
+        await _publish_progress(
+            session_id,
+            step=step,
+            percent=base_percent,
+            message=f"Running hyperparameter search for {model_name} ({index}/{total_candidates}).",
+        )
         try:
-            params, score = _run_hpo(X, y, model_name, metric, n_trials, cv, random_state, timeout)
+            params, score = _run_hpo(X, y, model_name, metric, n_trials, cv, random_state, session_id, timeout)
             candidates_evaluated.append({
                 "model": model_name,
                 "cv_score": round(score, 6),
@@ -544,6 +617,8 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
                 best_score = score
                 best_model_name = model_name
                 best_params = params
+        except UserInterruptRequested as exc:
+            return _failed(step, str(exc))
         except Exception as exc:
             candidates_evaluated.append({
                 "model": model_name,
@@ -551,18 +626,46 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
                 "n_trials": n_trials,
                 "error": str(exc),
             })
+        complete_percent = 45 + round((index / total_candidates) * 30)
+        latest = candidates_evaluated[-1]
+        latest_score = latest.get("cv_score")
+        await _publish_progress(
+            session_id,
+            step=step,
+            percent=complete_percent,
+            message=(
+                f"Finished candidate {model_name} ({index}/{total_candidates})"
+                + (f" with score {latest_score}." if latest_score is not None else ".")
+            ),
+        )
 
     if best_model_name is None:
         return _failed(
             step,
             f"All candidate models failed during HPO. Details: {candidates_evaluated}",
         )
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=80,
+        message=f"Best candidate selected: {best_model_name}. Training final model.",
+    )
 
     # --- train final model on full data ---
     try:
         final_model = _fit_final_model(X, y, best_model_name, best_params, random_state)
     except Exception as exc:
         return _failed(step, f"Final model training failed: {exc}\n{traceback.format_exc()}")
+    try:
+        raise_if_interrupted(session_id, context="Training interrupted by user.")
+    except UserInterruptRequested as exc:
+        return _failed(step, str(exc))
+    await _publish_progress(
+        session_id,
+        step=step,
+        percent=92,
+        message=f"Final {best_model_name} model trained. Saving artifacts.",
+    )
 
     training_time = round(time.time() - start_time, 2)
 

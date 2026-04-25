@@ -188,6 +188,7 @@ export interface AgentRuntimeEvent {
     | "repair_succeeded"
     | "repair_failed"
     | "step_started"
+    | "step_progress"
     | "step_retried"
     | "step_completed"
     | "step_failed"
@@ -202,6 +203,7 @@ export interface AgentRuntimeEvent {
   artifacts?: Array<Record<string, unknown>>;
   dashboard_updates?: CoordinatorDashboardUpdate[];
   completed_steps?: string[];
+  progress_percent?: number;
 }
 
 export interface AdminUserOverview {
@@ -366,6 +368,14 @@ export async function sendSupervisorMessage(
     body: JSON.stringify({ session_id: sessionId, user_message: userMessage, dataset_id: datasetId }),
   });
   return parseJsonOrThrow<SupervisorResponse>(response, "Send supervisor message");
+}
+
+export async function resetSupervisorRuntime(): Promise<{ success: boolean }> {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/supervisor/reset`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  return parseJsonOrThrow<{ success: boolean }>(response, "Reset supervisor runtime");
 }
 
 export async function fetchSavedReport(datasetId: string): Promise<SavedReportRecord | null> {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { AlertTriangle, Bot, Calendar, CheckCircle, Download, FolderKanban, Send, Sparkles, User } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -8,13 +9,14 @@ import {
   artifactDownloadUrl,
   type CoordinatorExecution,
   fetchRecentUploads,
+  resetSupervisorRuntime,
   sendSupervisorMessage,
   startSupervisorSession,
   type ProjectPlanResponse,
   type RecentUploadItem,
   type SupervisorResponse,
 } from "../lib/uploadsApi";
-import { saveAgentRuntimeSnapshot } from "../lib/agentRuntimeStore";
+import { clearAgentRuntimeSnapshot, saveAgentRuntimeSnapshot } from "../lib/agentRuntimeStore";
 
 function formatBytes(bytes?: number) {
   if (bytes === undefined || bytes === null) return "-";
@@ -313,6 +315,7 @@ function PlanCard({ plan, isFinal }: { plan: ProjectPlanResponse; isFinal?: bool
 }
 
 export function ProjectsPage() {
+  const navigate = useNavigate();
   const [storedPageState] = useState(loadProjectsPageState);
   const [uploads, setUploads] = useState<RecentUploadItem[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState(storedPageState.selectedDatasetId);
@@ -350,10 +353,26 @@ export function ProjectsPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
+  async function resetRuntimeState() {
+    try {
+      await resetSupervisorRuntime();
+    } catch {
+      // Still clear local runtime state even if the backend reset fails.
+    }
+
+    clearAgentRuntimeSnapshot();
+    setChatMessages([]);
+    setSessionId(null);
+    setIsFinalized(false);
+    setInputValue("");
+    setError(null);
+  }
+
   async function loadDatasets() {
     setUploadsLoading(true);
     setError(null);
     try {
+      await resetRuntimeState();
       const items = await fetchRecentUploads(50);
       setUploads(items);
       if (items.length > 0) {
@@ -373,12 +392,8 @@ export function ProjectsPage() {
     }
   }
 
-  function handleNewSession() {
-    setChatMessages([]);
-    setSessionId(null);
-    setIsFinalized(false);
-    setError(null);
-    setInputValue("");
+  async function handleNewSession() {
+    await resetRuntimeState();
   }
 
   function handleSupervisorResponse(response: SupervisorResponse) {
@@ -401,6 +416,7 @@ export function ProjectsPage() {
 
     if (response.type === "final") {
       setIsFinalized(true);
+      void navigate("/app/agents");
     }
   }
 
@@ -466,7 +482,7 @@ export function ProjectsPage() {
             Refresh Datasets
           </Button>
           {sessionId && (
-            <Button variant="outline" onClick={handleNewSession} disabled={sending}>
+            <Button variant="outline" onClick={() => void handleNewSession()} disabled={sending}>
               New Session
             </Button>
           )}
@@ -485,7 +501,7 @@ export function ProjectsPage() {
             value={selectedDatasetId}
             onChange={(event) => {
               setSelectedDatasetId(event.target.value);
-              handleNewSession();
+              void handleNewSession();
             }}
             disabled={uploadsLoading || uploads.length === 0 || !!sessionId}
           >

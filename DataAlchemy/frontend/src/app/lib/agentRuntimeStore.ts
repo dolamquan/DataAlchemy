@@ -55,3 +55,9 @@ export function loadAgentRuntimeSnapshot(): AgentRuntimeSnapshot | null {
     return null;
   }
 }
+
+
+export function clearAgentRuntimeSnapshot() {
+  localStorage.removeItem(AGENT_RUNTIME_STORAGE_KEY);
+  window.dispatchEvent(new Event("agent-runtime-updated"));
+}
