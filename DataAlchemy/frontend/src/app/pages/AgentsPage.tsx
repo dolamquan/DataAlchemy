@@ -45,8 +45,8 @@ import {
   type AgentRuntimeSnapshot,
 } from "../lib/agentRuntimeStore";
 import {
-  API_BASE_URL,
   artifactDownloadUrl,
+  authorizedWebsocketUrl,
   type AgentRuntimeEvent,
   type CoordinatorExecutionResult,
   type ProjectPlanResponse,
@@ -139,10 +139,6 @@ function roleIcon(role: AgentRole) {
   if (role === "supervisor") return <Brain className="w-4 h-4 text-blue-400" />;
   if (role === "coordinator") return <Orbit className="w-4 h-4 text-violet-400" />;
   return <Wrench className="w-4 h-4 text-cyan-400" />;
-}
-
-function websocketUrl(sessionId: string) {
-  return `${API_BASE_URL.replace(/^http/, "ws")}/ws/agents/${encodeURIComponent(sessionId)}`;
 }
 
 function eventKey(event: AgentRuntimeEvent, index: number) {
@@ -425,21 +421,33 @@ export function AgentsPage() {
     }
 
     setConnectionState("connecting");
-    const socket = new WebSocket(websocketUrl(snapshot.sessionId));
+    let cancelled = false;
+    let socket: WebSocket | null = null;
 
-    socket.onopen = () => setConnectionState("live");
-    socket.onmessage = (message) => {
-      const event = JSON.parse(message.data) as AgentRuntimeEvent;
-      setEvents((current) => {
-        const next = [...current, event];
-        saveAgentRuntimeEvents(snapshot.sessionId, next);
-        return next;
-      });
+    const connect = async () => {
+      const url = authorizedWebsocketUrl(snapshot.sessionId);
+      if (cancelled) return;
+
+      socket = new WebSocket(url);
+      socket.onopen = () => setConnectionState("live");
+      socket.onmessage = (message) => {
+        const event = JSON.parse(message.data) as AgentRuntimeEvent;
+        setEvents((current) => {
+          const next = [...current, event];
+          saveAgentRuntimeEvents(snapshot.sessionId, next);
+          return next;
+        });
+      };
+      socket.onclose = () => setConnectionState("disconnected");
+      socket.onerror = () => setConnectionState("disconnected");
     };
-    socket.onclose = () => setConnectionState("disconnected");
-    socket.onerror = () => setConnectionState("disconnected");
 
-    return () => socket.close();
+    void connect();
+
+    return () => {
+      cancelled = true;
+      socket?.close();
+    };
   }, [snapshot?.sessionId]);
 
   const livePlan = useMemo(() => planFromEvents(events, snapshot), [events, snapshot]);

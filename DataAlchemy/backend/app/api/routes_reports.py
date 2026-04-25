@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.deps import get_current_user
 from app.core.settings import OPENAI_MODEL, UPLOAD_DIR
-from app.db.models import get_report_record_by_dataset_id, save_report_record
+from app.db.models import get_report_record_by_dataset_id, log_user_activity, save_report_record
 from app.engine.llm_client import LLMClientError, call_text_llm
 from app.engine.agent_runtime import run_agent
 from app.engine.schemas import ReportAssistRequest, ReportCompileRequest, ReportGenerateRequest, ReportSaveRequest
@@ -14,24 +15,33 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
 @router.get("/{dataset_id}")
-def get_report(dataset_id: str):
-	record = get_report_record_by_dataset_id(dataset_id)
+def get_report(dataset_id: str, current_user: dict = Depends(get_current_user)):
+	record = get_report_record_by_dataset_id(dataset_id, owner_uid=current_user["uid"])
 	if record is None:
 		raise HTTPException(status_code=404, detail="Report not found")
 	return record
 
 
 @router.post("/generate")
-async def generate_report(payload: ReportGenerateRequest):
+async def generate_report(payload: ReportGenerateRequest, current_user: dict = Depends(get_current_user)):
 	result = await run_agent(
 		"report_agent",
 		{
 			"agent": "report_agent",
 			"step": "write_report",
 			"dataset_id": payload.dataset_id,
-			"config": payload.config or {},
+			"config": {**(payload.config or {}), "owner_uid": current_user["uid"]},
 			"prior_results": payload.prior_results,
 		},
+	)
+	log_user_activity(
+		owner_uid=current_user["uid"],
+		owner_email=current_user.get("email"),
+		activity_type="generate_report",
+		status="completed" if result.get("status") == "success" else "failed",
+		resource_id=payload.dataset_id,
+		resource_name=payload.dataset_id,
+		details={"agent_status": result.get("status")},
 	)
 	if result.get("status") != "success":
 		raise HTTPException(status_code=400, detail=((result.get("result") or {}).get("error") or "Report generation failed"))
@@ -39,7 +49,7 @@ async def generate_report(payload: ReportGenerateRequest):
 
 
 @router.post("/{dataset_id}/save")
-def save_report(dataset_id: str, payload: ReportSaveRequest):
+def save_report(dataset_id: str, payload: ReportSaveRequest, current_user: dict = Depends(get_current_user)):
 	file_id = safe_artifact_file_id("report", dataset_id, ".json")
 	content = payload.content
 	latex_source = str(content.get("latex_source") or "")
@@ -48,6 +58,7 @@ def save_report(dataset_id: str, payload: ReportSaveRequest):
 	compiled_pdf_file_id = None
 	if latex_source:
 		(UPLOAD_DIR / latex_file_id).write_text(latex_source, encoding="utf-8")
+		content["latex_source_file_id"] = latex_file_id
 	if latex_source:
 		pdf_file_id = safe_artifact_file_id("report", dataset_id, ".pdf")
 		compile_result = compile_latex_to_pdf(latex_source, pdf_file_id)
@@ -61,13 +72,21 @@ def save_report(dataset_id: str, payload: ReportSaveRequest):
 		content["latex_compiler_available"] = available
 		content["latex_compiler"] = compiler
 	write_json_artifact(file_id, content)
-	save_report_record(dataset_id=dataset_id, file_id=file_id, content=content)
+	save_report_record(dataset_id=dataset_id, file_id=file_id, content=content, owner_uid=current_user["uid"])
+	log_user_activity(
+		owner_uid=current_user["uid"],
+		owner_email=current_user.get("email"),
+		activity_type="save_report",
+		status="completed",
+		resource_id=dataset_id,
+		resource_name=str(content.get("title") or dataset_id),
+	)
 	return {"dataset_id": dataset_id, "file_id": file_id, "content": content}
 
 
 @router.post("/compile")
-def compile_report(payload: ReportCompileRequest):
-	record = get_report_record_by_dataset_id(payload.dataset_id)
+def compile_report(payload: ReportCompileRequest, current_user: dict = Depends(get_current_user)):
+	record = get_report_record_by_dataset_id(payload.dataset_id, owner_uid=current_user["uid"])
 	if record is None:
 		raise HTTPException(status_code=404, detail="Report not found")
 	content = record["content"]
@@ -81,7 +100,21 @@ def compile_report(payload: ReportCompileRequest):
 	content["latex_compiler"] = compiler
 	content["compiled_pdf_file_id"] = result.get("file_id")
 	content["latex_compile_error"] = result.get("error")
-	save_report_record(dataset_id=payload.dataset_id, file_id=record["file_id"], content=content)
+	save_report_record(
+		dataset_id=payload.dataset_id,
+		file_id=record["file_id"],
+		content=content,
+		owner_uid=current_user["uid"],
+	)
+	log_user_activity(
+		owner_uid=current_user["uid"],
+		owner_email=current_user.get("email"),
+		activity_type="compile_report",
+		status="completed" if bool(result.get("success")) else "failed",
+		resource_id=payload.dataset_id,
+		resource_name=payload.dataset_id,
+		details={"error": result.get("error")},
+	)
 	return {
 		"success": bool(result.get("success")),
 		"file_id": result.get("file_id"),
@@ -92,8 +125,8 @@ def compile_report(payload: ReportCompileRequest):
 
 
 @router.post("/assist")
-def assist_with_report(payload: ReportAssistRequest):
-	record = get_report_record_by_dataset_id(payload.dataset_id)
+def assist_with_report(payload: ReportAssistRequest, current_user: dict = Depends(get_current_user)):
+	record = get_report_record_by_dataset_id(payload.dataset_id, owner_uid=current_user["uid"])
 	if record is None:
 		raise HTTPException(status_code=404, detail="Report not found")
 
@@ -119,6 +152,23 @@ def assist_with_report(payload: ReportAssistRequest):
 			temperature=0.5,
 		)
 	except LLMClientError as exc:
+		log_user_activity(
+			owner_uid=current_user["uid"],
+			owner_email=current_user.get("email"),
+			activity_type="assist_report",
+			status="failed",
+			resource_id=payload.dataset_id,
+			resource_name=payload.dataset_id,
+			details={"error": str(exc)},
+		)
 		raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+	log_user_activity(
+		owner_uid=current_user["uid"],
+		owner_email=current_user.get("email"),
+		activity_type="assist_report",
+		status="completed",
+		resource_id=payload.dataset_id,
+		resource_name=payload.dataset_id,
+	)
 
 	return {"reply": reply}

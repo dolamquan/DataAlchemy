@@ -1,4 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router";
+import { useEffect, useState } from "react";
 import {
   Upload,
   FileText,
@@ -13,7 +14,10 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { useAuth } from "../lib/auth";
+import { fetchAdminAccess } from "../lib/uploadsApi";
 
 const navigation = [
   { name: "Upload Dataset", href: "/app/upload", icon: Upload, comingSoon: false },
@@ -27,9 +31,40 @@ const navigation = [
 ];
 
 export function AppLayout() {
+  const { user, signOutUser } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
+  const visibleNavigation = navigation.filter((item) => item.name !== "Admin" || isAdmin);
   const currentPath = location.pathname === "/app" ? "/app/upload" : location.pathname;
-  const currentPage = navigation.find((item) => currentPath.startsWith(item.href));
+  const currentPage = visibleNavigation.find((item) => currentPath.startsWith(item.href));
+  const initials =
+    user?.displayName
+      ?.split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() ||
+    user?.email?.slice(0, 2).toUpperCase() ||
+    "DA";
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const access = await fetchAdminAccess();
+        if (active) {
+          setIsAdmin(access.is_admin);
+        }
+      } catch {
+        if (active) {
+          setIsAdmin(false);
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
 
   return (
     <div className="dark min-h-screen flex bg-background">
@@ -48,7 +83,7 @@ export function AppLayout() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const Icon = item.icon;
             const isActive = currentPath.startsWith(item.href);
 
@@ -109,9 +144,16 @@ export function AppLayout() {
 
             <Avatar className="w-9 h-9">
               <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                JD
+                {initials}
               </AvatarFallback>
             </Avatar>
+            <div className="min-w-0 max-w-48 text-right">
+              <p className="truncate text-sm text-foreground">{user?.displayName || user?.email || "Signed in"}</p>
+              <p className="truncate text-xs text-muted-foreground">{user?.email || "Firebase account"}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void signOutUser()}>
+              Sign Out
+            </Button>
           </div>
         </header>
 

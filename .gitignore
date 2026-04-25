@@ -1,0 +1,26 @@
+# DataAlchemy environment and secrets
+DataAlchemy/**/.env
+DataAlchemy/**/*.env
+!DataAlchemy/**/.env.example
+DataAlchemy/backend/*.json
+!DataAlchemy/backend/*.example.json
+
+# Python caches
+DataAlchemy/**/__pycache__/
+DataAlchemy/**/*.py[cod]
+DataAlchemy/.pytest_cache/
+
+# Local databases and uploaded artifacts
+DataAlchemy/backend/app/db/*.db
+DataAlchemy/backend/uploads/*
+!DataAlchemy/backend/uploads/.gitkeep
+
+# Frontend build artifacts
+DataAlchemy/frontend/node_modules/
+DataAlchemy/frontend/dist/
+DataAlchemy/frontend/.vite/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/

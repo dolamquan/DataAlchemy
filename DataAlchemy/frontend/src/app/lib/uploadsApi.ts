@@ -1,3 +1,5 @@
+import { getCurrentIdToken, getStoredIdToken } from "./firebase";
+
 export const API_BASE_URL = "http://127.0.0.1:8000";
 
 export interface RecentUploadItem {
@@ -159,6 +161,7 @@ export interface ReportDocument {
   next_steps: string[];
   draft_markdown: string;
   latex_source: string;
+  latex_source_file_id?: string | null;
   latex_compiler_available?: boolean;
   latex_compiler?: string | null;
   compiled_pdf_file_id?: string | null;
@@ -201,6 +204,46 @@ export interface AgentRuntimeEvent {
   completed_steps?: string[];
 }
 
+export interface AdminUserOverview {
+  uid: string;
+  email?: string | null;
+  display_name?: string | null;
+  status: "active" | "disabled";
+  is_admin: boolean;
+  created_at?: string | null;
+  last_sign_in_at?: string | null;
+  last_activity_at?: string | null;
+  upload_count: number;
+  report_count: number;
+  activity_count: number;
+  completed_count: number;
+  failed_count: number;
+}
+
+export interface AdminActivityOverview {
+  owner_uid?: string | null;
+  owner_email?: string | null;
+  activity_type: string;
+  status: string;
+  resource_id?: string | null;
+  resource_name?: string | null;
+  details?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AdminOverviewResponse {
+  totals: {
+    total_users: number;
+    active_users: number;
+    total_uploads: number;
+    total_reports: number;
+    total_activities: number;
+    failed_activities: number;
+  };
+  users: AdminUserOverview[];
+  activities: AdminActivityOverview[];
+}
+
 async function parseJsonOrThrow<T>(response: Response, context: string): Promise<T> {
   if (!response.ok) {
     let detail = await response.text().catch(() => "");
@@ -221,14 +264,37 @@ async function parseJsonOrThrow<T>(response: Response, context: string): Promise
   return response.json() as Promise<T>;
 }
 
+async function authHeaders(existing?: HeadersInit) {
+  const headers = new Headers(existing);
+  const token = await getCurrentIdToken();
+  if (!token) {
+    throw new Error("You must be signed in to access the API.");
+  }
+  headers.set("Authorization", `Bearer ${token}`);
+  return headers;
+}
+
+async function apiFetch(input: string, init: RequestInit = {}) {
+  const headers = await authHeaders(init.headers);
+  return fetch(input, { ...init, headers });
+}
+
+async function apiJsonFetch(input: string, init: RequestInit = {}) {
+  const headers = await authHeaders(init.headers);
+  if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+  return fetch(input, { ...init, headers });
+}
+
 export async function fetchRecentUploads(limit = 50): Promise<RecentUploadItem[]> {
-  const response = await fetch(`${API_BASE_URL}/api/uploads/recent?limit=${limit}`);
+  const response = await apiFetch(`${API_BASE_URL}/api/uploads/recent?limit=${limit}`);
   const payload = await parseJsonOrThrow<{ items?: RecentUploadItem[] }>(response, "Fetch uploads");
   return Array.isArray(payload.items) ? payload.items : [];
 }
 
 export async function fetchSchemaProfile(fileId: string): Promise<SchemaProfile | null> {
-  const response = await fetch(`${API_BASE_URL}/api/uploads/${encodeURIComponent(fileId)}/schema`);
+  const response = await apiFetch(`${API_BASE_URL}/api/uploads/${encodeURIComponent(fileId)}/schema`);
 
   if (response.status === 404) {
     return null;
@@ -239,7 +305,7 @@ export async function fetchSchemaProfile(fileId: string): Promise<SchemaProfile 
 }
 
 export async function fetchSchemaInsights(fileId: string): Promise<SchemaInsights | null> {
-  const response = await fetch(`${API_BASE_URL}/api/uploads/${encodeURIComponent(fileId)}/insights`);
+  const response = await apiFetch(`${API_BASE_URL}/api/uploads/${encodeURIComponent(fileId)}/insights`);
 
   if (response.status === 404) {
     return null;
@@ -250,11 +316,8 @@ export async function fetchSchemaInsights(fileId: string): Promise<SchemaInsight
 }
 
 export async function createProjectPlan(datasetId: string, userMessage: string): Promise<ProjectPlanResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/projects/plan`, {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/projects/plan`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
       dataset_id: datasetId,
       user_message: userMessage,
@@ -268,16 +331,29 @@ export async function startSupervisorSession(
   datasetId: string,
   userMessage: string,
 ): Promise<SupervisorResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/supervisor/start`, {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/supervisor/start`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ dataset_id: datasetId, user_message: userMessage }),
   });
   return parseJsonOrThrow<SupervisorResponse>(response, "Start supervisor session");
 }
 
 export function artifactDownloadUrl(fileId: string): string {
-  return `${API_BASE_URL}/api/artifacts/${encodeURIComponent(fileId)}`;
+  const token = getStoredIdToken();
+  const url = new URL(`${API_BASE_URL}/api/artifacts/${encodeURIComponent(fileId)}`);
+  if (token) {
+    url.searchParams.set("token", token);
+  }
+  return url.toString();
+}
+
+export function authorizedWebsocketUrl(sessionId: string): string {
+  const token = getStoredIdToken();
+  const url = new URL(`${API_BASE_URL.replace(/^http/, "ws")}/ws/agents/${encodeURIComponent(sessionId)}`);
+  if (token) {
+    url.searchParams.set("token", token);
+  }
+  return url.toString();
 }
 
 export async function sendSupervisorMessage(
@@ -285,16 +361,15 @@ export async function sendSupervisorMessage(
   userMessage: string,
   datasetId?: string,
 ): Promise<SupervisorResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/supervisor/message`, {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/supervisor/message`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionId, user_message: userMessage, dataset_id: datasetId }),
   });
   return parseJsonOrThrow<SupervisorResponse>(response, "Send supervisor message");
 }
 
 export async function fetchSavedReport(datasetId: string): Promise<SavedReportRecord | null> {
-  const response = await fetch(`${API_BASE_URL}/api/reports/${encodeURIComponent(datasetId)}`);
+  const response = await apiFetch(`${API_BASE_URL}/api/reports/${encodeURIComponent(datasetId)}`);
   if (response.status === 404) {
     return null;
   }
@@ -306,9 +381,8 @@ export async function generateReport(
   priorResults: CoordinatorExecutionResult[],
   config?: Record<string, unknown>,
 ): Promise<{ result: ReportDocument; artifacts: Array<Record<string, unknown>> }> {
-  const response = await fetch(`${API_BASE_URL}/api/reports/generate`, {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/reports/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       dataset_id: datasetId,
       prior_results: priorResults,
@@ -322,9 +396,8 @@ export async function generateReport(
 }
 
 export async function saveReport(datasetId: string, content: ReportDocument): Promise<SavedReportRecord> {
-  const response = await fetch(`${API_BASE_URL}/api/reports/${encodeURIComponent(datasetId)}/save`, {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/reports/${encodeURIComponent(datasetId)}/save`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
   });
   const payload = await parseJsonOrThrow<{ dataset_id: string; file_id: string; content: ReportDocument }>(
@@ -345,9 +418,8 @@ export async function assistWithReport(
   message: string,
   currentDraft: string,
 ): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/reports/assist`, {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/reports/assist`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       dataset_id: datasetId,
       message,
@@ -368,9 +440,8 @@ export async function compileReportLatex(
   compiler_available?: boolean;
   compiler?: string | null;
 }> {
-  const response = await fetch(`${API_BASE_URL}/api/reports/compile`, {
+  const response = await apiJsonFetch(`${API_BASE_URL}/api/reports/compile`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       dataset_id: datasetId,
       latex_source: latexSource,
@@ -383,4 +454,24 @@ export async function compileReportLatex(
     compiler_available?: boolean;
     compiler?: string | null;
   }>(response, "Compile report");
+}
+
+export async function uploadCsvFile(file: File): Promise<{ message: string; file_id: string; schema_profile: SchemaProfile }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiFetch(`${API_BASE_URL}/api/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  return parseJsonOrThrow<{ message: string; file_id: string; schema_profile: SchemaProfile }>(response, "Upload dataset");
+}
+
+export async function fetchAdminAccess(): Promise<{ is_admin: boolean }> {
+  const response = await apiFetch(`${API_BASE_URL}/api/admin/access`);
+  return parseJsonOrThrow<{ is_admin: boolean }>(response, "Fetch admin access");
+}
+
+export async function fetchAdminOverview(): Promise<AdminOverviewResponse> {
+  const response = await apiFetch(`${API_BASE_URL}/api/admin/overview`);
+  return parseJsonOrThrow<AdminOverviewResponse>(response, "Fetch admin overview");
 }

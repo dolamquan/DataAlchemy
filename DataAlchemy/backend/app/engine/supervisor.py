@@ -112,19 +112,26 @@ def _build_full_system_prompt(base_prompt: str, schema_text: str) -> str:
 # ========== Core Logic ==========
 
 
-async def start_session(*, dataset_id: str, user_message: str) -> SupervisorResponse:
+def user_can_access_session(session_id: str, user_uid: str) -> bool:
+    session = _sessions.get(session_id)
+    if session is None:
+        return False
+    return session.get("user_uid") == user_uid
+
+
+async def start_session(*, dataset_id: str, user_message: str, user_uid: str) -> SupervisorResponse:
     """Create a new session, load schema, send user's request to LLM, return draft plan."""
 
     # Load agent config from registry
     agent_config = get_agent_config("supervisor")
 
     # Validate dataset exists
-    record = get_upload_record_by_file_id(dataset_id)
+    record = get_upload_record_by_file_id(dataset_id, owner_uid=user_uid)
     if record is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     # Load schema profile
-    schema_profile = get_upload_schema_by_file_id(dataset_id)
+    schema_profile = get_upload_schema_by_file_id(dataset_id, owner_uid=user_uid)
     if schema_profile is None:
         raise HTTPException(status_code=404, detail="Schema profile not found for dataset")
 
@@ -160,6 +167,7 @@ async def start_session(*, dataset_id: str, user_message: str) -> SupervisorResp
     response = await _process_result(session_id, dataset_id, result)
 
     _sessions[session_id] = {
+        "user_uid": user_uid,
         "dataset_id": dataset_id,
         "system_prompt": full_system,
         "messages": messages,
@@ -175,6 +183,7 @@ async def send_message(
     *,
     session_id: str,
     user_message: str,
+    user_uid: str,
     dataset_id: str | None = None,
 ) -> SupervisorResponse:
     """Send a user message in an existing session, get back revised plan or final plan."""
@@ -182,8 +191,10 @@ async def send_message(
     session = _sessions.get(session_id)
     if session is None:
         if dataset_id:
-            return await start_session(dataset_id=dataset_id, user_message=user_message)
+            return await start_session(dataset_id=dataset_id, user_message=user_message, user_uid=user_uid)
         raise HTTPException(status_code=404, detail="Session not found")
+    if session.get("user_uid") != user_uid:
+        raise HTTPException(status_code=403, detail="You do not have access to this session")
     if session["finished"]:
         raise HTTPException(status_code=400, detail="Session already has a finalized plan")
 
@@ -363,7 +374,7 @@ def _infer_plan_target_column(dataset_id: str, user_goal: str) -> str | None:
     if user_goal not in {"train_model", "preprocess_and_train", "full_pipeline", "evaluate_model"}:
         return None
 
-    schema_profile = get_upload_schema_by_file_id(dataset_id)
+    schema_profile = get_upload_schema_by_file_id(dataset_id, owner_uid=user_uid)
     if not schema_profile:
         return _infer_target_from_file_header(dataset_id)
 

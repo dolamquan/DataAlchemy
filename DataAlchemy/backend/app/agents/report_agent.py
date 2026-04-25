@@ -46,13 +46,13 @@ def _latest_result(prior_results: list[dict[str, Any]], agent_name: str) -> dict
     return None
 
 
-def _dataset_overview(dataset_id: str) -> dict[str, Any]:
+def _dataset_overview(dataset_id: str, owner_uid: str | None = None) -> dict[str, Any]:
     try:
-        upload = get_upload_record_by_file_id(dataset_id) or {}
+        upload = get_upload_record_by_file_id(dataset_id, owner_uid=owner_uid) or {}
     except Exception:
         upload = {}
     try:
-        schema = get_upload_schema_by_file_id(dataset_id) or {}
+        schema = get_upload_schema_by_file_id(dataset_id, owner_uid=owner_uid) or {}
     except Exception:
         schema = {}
     columns = schema.get("columns", [])
@@ -269,7 +269,7 @@ def _build_report_document(
     cfg: dict[str, Any],
     prior_results: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    overview = _dataset_overview(dataset_id)
+    overview = _dataset_overview(dataset_id, owner_uid=cfg.get("owner_uid"))
     quality_summary, quality_bullets, quality_data = _summarize_quality(
         _latest_result(prior_results, "data_quality_agent")
     )
@@ -441,7 +441,7 @@ async def report_handler(payload: dict[str, Any]) -> dict[str, Any]:
 
     if not prior_results:
         try:
-            existing = get_report_record_by_dataset_id(dataset_id)
+            existing = get_report_record_by_dataset_id(dataset_id, owner_uid=cfg.get("owner_uid"))
         except Exception:
             existing = None
         if existing is not None:
@@ -472,6 +472,7 @@ async def report_handler(payload: dict[str, Any]) -> dict[str, Any]:
     latex_file_id = safe_artifact_file_id("report", dataset_id, ".tex")
     latex_path = Path(report_path).with_name(latex_file_id)
     latex_path.write_text(str(report.get("latex_source") or ""), encoding="utf-8")
+    report["latex_source_file_id"] = latex_file_id
     latex_pdf_file_id = safe_artifact_file_id("report", dataset_id, ".pdf")
     compile_result = compile_latex_to_pdf(str(report.get("latex_source") or ""), latex_pdf_file_id)
     if compile_result.get("success"):
@@ -480,7 +481,12 @@ async def report_handler(payload: dict[str, Any]) -> dict[str, Any]:
         report["latex_compile_error"] = compile_result.get("error")
     report_path = write_json_artifact(report_file_id, report)
     try:
-        save_report_record(dataset_id=dataset_id, file_id=report_file_id, content=report)
+        save_report_record(
+            dataset_id=dataset_id,
+            file_id=report_file_id,
+            content=report,
+            owner_uid=cfg.get("owner_uid"),
+        )
     except Exception:
         pass
 

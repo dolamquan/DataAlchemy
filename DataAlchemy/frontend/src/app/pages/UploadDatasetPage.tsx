@@ -4,8 +4,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/progress";
-
-const API_BASE_URL = "http://127.0.0.1:8000";
+import { fetchRecentUploads, fetchSchemaProfile, uploadCsvFile } from "../lib/uploadsApi";
 
 interface RecentUploadItem {
   file_id: string;
@@ -60,12 +59,8 @@ export function UploadDatasetPage() {
     setRecentLoading(true);
     setRecentError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/uploads/recent?limit=10`);
-      if (!res.ok) {
-        throw new Error(`Failed to load recent uploads (${res.status})`);
-      }
-      const data = await res.json();
-      setRecentUploads(Array.isArray(data?.items) ? data.items : []);
+      const items = await fetchRecentUploads(10);
+      setRecentUploads(items);
     } catch (err: any) {
       console.error("Failed to load recent uploads", err);
       setRecentError(err?.message ?? "Unable to load recent uploads");
@@ -109,21 +104,7 @@ export function UploadDatasetPage() {
     setUploadProgress(10);
 
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-
-      // send to backend
-      const res = await fetch(`${API_BASE_URL}/api/upload`, {
-        method: "POST",
-        body: fd,
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || `Upload failed (${res.status})`);
-      }
-
-      const data = await res.json();
+      const data = await uploadCsvFile(file);
       // store schema_profile and file_id as requested
       if (data?.schema_profile) {
         setSchemaProfile(data.schema_profile);
@@ -152,13 +133,12 @@ export function UploadDatasetPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/uploads/${encodeURIComponent(recentFileId)}/schema`);
-      if (!res.ok) {
-        throw new Error(`Failed to load schema (${res.status})`);
+      const schema = await fetchSchemaProfile(recentFileId);
+      if (!schema) {
+        throw new Error("Failed to load schema");
       }
-      const data = await res.json();
-      setSchemaProfile(data?.schema_profile ?? null);
-      setFileId(data?.file_id ?? recentFileId);
+      setSchemaProfile(schema);
+      setFileId(recentFileId);
     } catch (err: any) {
       console.error("Failed to load schema profile", err);
       setError(err?.message ?? "Failed to load schema profile");

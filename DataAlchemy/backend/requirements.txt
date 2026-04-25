@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+python-dotenv
 python-multipart
 openai
 pyyaml
@@ -10,3 +11,4 @@ optuna
 xgboost
 lightgbm
 joblib
+firebase-admin
