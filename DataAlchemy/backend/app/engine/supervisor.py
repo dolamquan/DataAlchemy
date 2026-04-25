@@ -348,6 +348,34 @@ async def _run_plan_execution(
         session = _sessions.get(session_id)
         if session is not None:
             session["execution"] = execution
+    except asyncio.CancelledError:
+        await publish_agent_event(
+            session_id,
+            {
+                "type": "coordinator_failed",
+                "agent": "coordinator",
+                "status": "failed",
+                "message": "Coordinator run was interrupted by user reset.",
+            },
+        )
+        session = _sessions.get(session_id)
+        if session is not None:
+            session["execution"] = {
+                "status": "failed",
+                "completed_steps": [],
+                "failed_step": None,
+                "results": [],
+                "artifacts": [],
+                "dashboard_updates": [
+                    {
+                        "step": None,
+                        "agent": "coordinator",
+                        "status": "failed",
+                        "message": "Coordinator run was interrupted by user reset.",
+                    }
+                ],
+            }
+        raise
     except Exception as exc:
         await publish_agent_event(
             session_id,
