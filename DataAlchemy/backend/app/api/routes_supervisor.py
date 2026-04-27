@@ -10,7 +10,13 @@ from app.engine.schemas import (
     SupervisorResponse,
 )
 from app.engine.llm_client import LLMClientError
-from app.engine.supervisor import reset_user_runtime, send_message, start_session
+from app.engine.supervisor import (
+    get_session_execution_events,
+    get_session_execution_status,
+    reset_user_runtime,
+    send_message,
+    start_session,
+)
 
 router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
 
@@ -95,3 +101,36 @@ async def supervisor_message(
             details={"session_id": payload.session_id, "error": str(exc)},
         )
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@router.get("/{session_id}/status")
+async def supervisor_session_status(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    status = get_session_execution_status(session_id=session_id, user_uid=current_user["uid"])
+    if status is None:
+        raise HTTPException(status_code=404, detail="Execution run not found")
+    return status
+
+
+@router.get("/{session_id}/events")
+async def supervisor_session_events(
+    session_id: str,
+    limit: int = 250,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    status = get_session_execution_status(session_id=session_id, user_uid=current_user["uid"])
+    if status is None:
+        raise HTTPException(status_code=404, detail="Execution run not found")
+
+    events = get_session_execution_events(
+        session_id=session_id,
+        user_uid=current_user["uid"],
+        limit=limit,
+    )
+    return {
+        "session_id": session_id,
+        "count": len(events),
+        "events": events,
+    }

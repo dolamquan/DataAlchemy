@@ -3,6 +3,41 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
+from pathlib import Path
+
+
+def test_report_record_serializes_non_json_native_values(monkeypatch, tmp_path) -> None:
+    from app.db import models
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+
+    try:
+        monkeypatch.setattr(models, "get_connection", lambda: conn)
+        models.init_upload_tables()
+
+        report_path = tmp_path / "report.tex"
+        models.save_report_record(
+            owner_uid="user-1",
+            dataset_id="dataset-1.csv",
+            file_id="report_dataset-1.json",
+            content={
+                "title": "Analysis Report",
+                "assistant_context": {
+                    "source_path": report_path,
+                    "artifacts": [report_path],
+                },
+            },
+        )
+
+        record = models.get_report_record_by_dataset_id("dataset-1.csv")
+
+        assert record is not None
+        assert record["content"]["assistant_context"]["source_path"] == str(report_path)
+        assert record["content"]["assistant_context"]["artifacts"] == [str(report_path)]
+    finally:
+        conn.close()
 
 
 def test_report_handler_generates_editable_report(monkeypatch, tmp_path) -> None:
@@ -12,7 +47,7 @@ def test_report_handler_generates_editable_report(monkeypatch, tmp_path) -> None
 
     monkeypatch.setattr(
         "app.agents.report_agent.get_upload_record_by_file_id",
-        lambda dataset_id: {
+        lambda dataset_id, owner_uid=None: {
             "file_id": dataset_id,
             "original_filename": "customers.csv",
             "file_size_bytes": 1024,
@@ -21,7 +56,7 @@ def test_report_handler_generates_editable_report(monkeypatch, tmp_path) -> None
     )
     monkeypatch.setattr(
         "app.agents.report_agent.get_upload_schema_by_file_id",
-        lambda dataset_id: {
+        lambda dataset_id, owner_uid=None: {
             "rows_sampled": 100,
             "total_columns": 4,
             "columns": [
@@ -31,7 +66,10 @@ def test_report_handler_generates_editable_report(monkeypatch, tmp_path) -> None
             "notes": ["schema note"],
         },
     )
-    monkeypatch.setattr("app.agents.report_agent.get_report_record_by_dataset_id", lambda dataset_id: None)
+    monkeypatch.setattr(
+        "app.agents.report_agent.get_report_record_by_dataset_id",
+        lambda dataset_id, owner_uid=None: None,
+    )
     monkeypatch.setattr(
         "app.agents.report_agent.save_report_record",
         lambda **kwargs: saved_reports.append(kwargs),

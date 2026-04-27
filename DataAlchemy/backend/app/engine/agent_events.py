@@ -6,6 +6,8 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
+from app.db.models import append_execution_stage_event
+
 AgentEvent = dict[str, Any]
 
 _history: dict[str, list[AgentEvent]] = {}
@@ -25,6 +27,14 @@ async def publish_agent_event(session_id: str | None, event: dict[str, Any]) -> 
         "timestamp": _now(),
         **event,
     }
+
+    # Event persistence is best-effort; live websocket delivery should continue
+    # even if SQLite write errors occur.
+    try:
+        append_execution_stage_event(session_id, payload)
+    except Exception:
+        pass
+
     _history.setdefault(session_id, []).append(payload)
 
     for queue in list(_subscribers.get(session_id, set())):

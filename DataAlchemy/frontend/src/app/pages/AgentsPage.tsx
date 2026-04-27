@@ -49,6 +49,8 @@ import {
 import {
   artifactDownloadUrl,
   authorizedWebsocketUrl,
+  fetchSupervisorExecutionEvents,
+  fetchSupervisorExecutionStatus,
   resetSupervisorRuntime,
   type AgentRuntimeEvent,
   type CoordinatorExecutionResult,
@@ -147,7 +149,24 @@ function roleIcon(role: AgentRole) {
 }
 
 function eventKey(event: AgentRuntimeEvent, index: number) {
-  return `${event.timestamp}-${event.type}-${event.agent ?? "agent"}-${event.step ?? "run"}-${index}`;
+  return `${event.id ?? "noid"}-${event.step_index ?? "nostep"}-${event.timestamp}-${event.type}-${event.agent ?? "agent"}-${event.step ?? "run"}-${index}`;
+}
+
+function mergeEvents(existing: AgentRuntimeEvent[], incoming: AgentRuntimeEvent[]) {
+  const merged = [...existing];
+  const seen = new Set(
+    existing.map((event) => `${event.id ?? ""}|${event.timestamp}|${event.type}|${event.agent ?? ""}|${event.step ?? ""}|${event.step_index ?? ""}`),
+  );
+
+  for (const event of incoming) {
+    const key = `${event.id ?? ""}|${event.timestamp}|${event.type}|${event.agent ?? ""}|${event.step ?? ""}|${event.step_index ?? ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    merged.push(event);
+    seen.add(key);
+  }
+  return merged;
 }
 
 function summarizeResult(result: CoordinatorExecutionResult | undefined) {
@@ -464,6 +483,55 @@ export function AgentsPage() {
       socket?.close();
     };
   }, [snapshot?.sessionId]);
+
+  useEffect(() => {
+    if (!snapshot?.sessionId || connectionState === "live") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const [status, response] = await Promise.all([
+          fetchSupervisorExecutionStatus(snapshot.sessionId),
+          fetchSupervisorExecutionEvents(snapshot.sessionId, 500),
+        ]);
+        if (cancelled) {
+          return;
+        }
+
+        const current = loadAgentRuntimeSnapshot();
+        if (current && current.sessionId === snapshot.sessionId) {
+          localStorage.setItem(
+            AGENT_RUNTIME_STORAGE_KEY,
+            JSON.stringify({
+              ...current,
+              datasetId: status.dataset_id,
+              capturedAt: status.updated_at,
+              plan: status.plan,
+              events: mergeEvents(current.events ?? [], response.events),
+            }),
+          );
+          window.dispatchEvent(new Event("agent-runtime-updated"));
+        }
+
+        setEvents((existing) => mergeEvents(existing, response.events));
+      } catch {
+        // Best-effort fallback polling should not disrupt live UI.
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [snapshot?.sessionId, connectionState]);
 
   async function handleStopRun() {
     setStoppingRun(true);

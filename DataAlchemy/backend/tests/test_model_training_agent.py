@@ -377,11 +377,13 @@ class TestModelTrainingHandlerIntegration:
         }
         assert len(r["candidates_evaluated"]) >= 1
         assert (tmp_path / r["model_file_id"]).exists()
+        assert r["target_column_source"] == "configured"
 
         artifact_names = [a["name"] for a in result["artifacts"]]
         assert "trained_model.joblib" in artifact_names
         assert "training_report.json" in artifact_names
         assert len(result["dashboard_updates"]) == 1
+        assert "y='target'" in result["dashboard_updates"][0]["message"]
 
     @pytest.mark.asyncio
     async def test_regression_success(
@@ -435,6 +437,8 @@ class TestModelTrainingHandlerIntegration:
         assert result["status"] == "success"
         assert result["result"]["target_inferred"] is True
         assert result["result"]["target_column"] == "target"
+        assert result["result"]["target_column_source"] == "inferred"
+        assert "y='target'" in result["dashboard_updates"][0]["message"]
 
     @pytest.mark.asyncio
     async def test_reads_preprocessed_file_from_prior_results(
