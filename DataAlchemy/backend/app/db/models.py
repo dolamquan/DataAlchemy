@@ -51,6 +51,76 @@ def init_upload_tables() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS execution_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner_uid TEXT NOT NULL,
+                dataset_id TEXT NOT NULL,
+                session_id TEXT NOT NULL UNIQUE,
+                plan_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                current_step_index INTEGER,
+                current_step_name TEXT,
+                total_steps INTEGER NOT NULL,
+                completed_step_count INTEGER NOT NULL,
+                failed_step_name TEXT,
+                error_message TEXT,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS execution_stage_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_run_id INTEGER NOT NULL,
+                owner_uid TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                dataset_id TEXT NOT NULL,
+                step_index INTEGER,
+                step_name TEXT,
+                agent_name TEXT,
+                event_type TEXT NOT NULL,
+                status TEXT,
+                message TEXT,
+                artifacts_json TEXT,
+                result_summary_json TEXT,
+                stdout TEXT,
+                stderr TEXT,
+                timestamp TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(execution_run_id) REFERENCES execution_runs(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_execution_runs_owner_created
+            ON execution_runs(owner_uid, created_at DESC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_execution_runs_session
+            ON execution_runs(session_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_execution_stage_events_session_created
+            ON execution_stage_events(session_id, created_at ASC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_execution_stage_events_run_step
+            ON execution_stage_events(execution_run_id, step_index, created_at ASC)
+            """
+        )
 
         upload_columns = {row["name"] for row in conn.execute("PRAGMA table_info(uploads)").fetchall()}
         if "file_content" not in upload_columns:
@@ -310,7 +380,7 @@ def save_report_record(
 ) -> None:
     init_upload_tables()
     timestamp = datetime.now(timezone.utc).isoformat()
-    payload = json.dumps(content)
+    payload = json.dumps(content, default=str)
 
     with get_connection() as conn:
         conn.execute(
@@ -549,3 +619,359 @@ def summarize_user_activity() -> list[dict[str, Any]]:
 
     summaries.sort(key=lambda item: item.get("last_activity_at") or "", reverse=True)
     return summaries
+
+
+def _execution_run_row_to_dict(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "owner_uid": row["owner_uid"],
+        "dataset_id": row["dataset_id"],
+        "session_id": row["session_id"],
+        "plan": json.loads(row["plan_json"]),
+        "status": row["status"],
+        "current_step_index": row["current_step_index"],
+        "current_step_name": row["current_step_name"],
+        "total_steps": row["total_steps"],
+        "completed_step_count": row["completed_step_count"],
+        "failed_step_name": row["failed_step_name"],
+        "error_message": row["error_message"],
+        "started_at": row["started_at"],
+        "ended_at": row["ended_at"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def create_execution_run(
+    *,
+    owner_uid: str,
+    dataset_id: str,
+    session_id: str,
+    plan: dict[str, Any],
+    total_steps: int,
+) -> int:
+    init_upload_tables()
+    timestamp = datetime.now(timezone.utc).isoformat()
+    payload = json.dumps(plan, default=str)
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO execution_runs (
+                owner_uid,
+                dataset_id,
+                session_id,
+                plan_json,
+                status,
+                current_step_index,
+                current_step_name,
+                total_steps,
+                completed_step_count,
+                failed_step_name,
+                error_message,
+                started_at,
+                ended_at,
+                created_at,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                owner_uid = excluded.owner_uid,
+                dataset_id = excluded.dataset_id,
+                plan_json = excluded.plan_json,
+                status = excluded.status,
+                current_step_index = excluded.current_step_index,
+                current_step_name = excluded.current_step_name,
+                total_steps = excluded.total_steps,
+                completed_step_count = excluded.completed_step_count,
+                failed_step_name = excluded.failed_step_name,
+                error_message = excluded.error_message,
+                started_at = excluded.started_at,
+                ended_at = excluded.ended_at,
+                updated_at = excluded.updated_at
+            """,
+            (
+                owner_uid,
+                dataset_id,
+                session_id,
+                payload,
+                "running",
+                None,
+                None,
+                total_steps,
+                0,
+                None,
+                None,
+                timestamp,
+                None,
+                timestamp,
+                timestamp,
+            ),
+        )
+        row = conn.execute(
+            """
+            SELECT id
+            FROM execution_runs
+            WHERE session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        conn.commit()
+    return int(row["id"])
+
+
+def get_execution_run_by_session_id(session_id: str, *, owner_uid: str | None = None) -> dict[str, Any] | None:
+    init_upload_tables()
+    where_sql, params = _user_clause(owner_uid)
+    with get_connection() as conn:
+        row = conn.execute(
+            f"""
+            SELECT *
+            FROM execution_runs
+            WHERE session_id = ? {where_sql}
+            """,
+            (session_id, *params),
+        ).fetchone()
+
+    if row is None:
+        return None
+    return _execution_run_row_to_dict(row)
+
+
+def user_can_access_execution_run(session_id: str, *, owner_uid: str) -> bool:
+    init_upload_tables()
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT 1
+            FROM execution_runs
+            WHERE session_id = ? AND owner_uid = ?
+            """,
+            (session_id, owner_uid),
+        ).fetchone()
+    return row is not None
+
+
+def append_execution_stage_event(session_id: str, event: dict[str, Any]) -> None:
+    init_upload_tables()
+    with get_connection() as conn:
+        run_row = conn.execute(
+            """
+            SELECT id, owner_uid, dataset_id
+            FROM execution_runs
+            WHERE session_id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        if run_row is None:
+            return
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        event_timestamp = str(event.get("timestamp") or timestamp)
+        event_type = str(event.get("type") or "unknown")
+        status = str(event.get("status")) if event.get("status") is not None else None
+        step_name = str(event.get("step")) if event.get("step") is not None else None
+        step_index = event.get("step_index")
+        if not isinstance(step_index, int):
+            step_index = None
+
+        message = str(event.get("message")) if event.get("message") is not None else None
+        agent_name = str(event.get("agent")) if event.get("agent") is not None else None
+
+        artifacts = event.get("artifacts")
+        artifacts_json = json.dumps(artifacts, default=str) if artifacts is not None else None
+
+        result_value = event.get("result")
+        if isinstance(result_value, dict):
+            result_summary = {
+                "keys": list(result_value.keys()),
+                "error": result_value.get("error"),
+                "message": result_value.get("message"),
+            }
+        else:
+            result_summary = {"value_type": type(result_value).__name__} if result_value is not None else None
+        result_summary_json = json.dumps(result_summary, default=str) if result_summary is not None else None
+
+        conn.execute(
+            """
+            INSERT INTO execution_stage_events (
+                execution_run_id,
+                owner_uid,
+                session_id,
+                dataset_id,
+                step_index,
+                step_name,
+                agent_name,
+                event_type,
+                status,
+                message,
+                artifacts_json,
+                result_summary_json,
+                stdout,
+                stderr,
+                timestamp,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(run_row["id"]),
+                str(run_row["owner_uid"]),
+                session_id,
+                str(run_row["dataset_id"]),
+                step_index,
+                step_name,
+                agent_name,
+                event_type,
+                status,
+                message,
+                artifacts_json,
+                result_summary_json,
+                str(event.get("stdout")) if event.get("stdout") is not None else None,
+                str(event.get("stderr")) if event.get("stderr") is not None else None,
+                event_timestamp,
+                timestamp,
+            ),
+        )
+
+        if event_type in {"step_started", "step_retried", "repair_started", "repair_succeeded"}:
+            conn.execute(
+                """
+                UPDATE execution_runs
+                SET current_step_index = ?,
+                    current_step_name = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (step_index, step_name, timestamp, int(run_row["id"])),
+            )
+
+        if event_type == "step_completed":
+            conn.execute(
+                """
+                UPDATE execution_runs
+                SET completed_step_count = completed_step_count + 1,
+                    current_step_index = ?,
+                    current_step_name = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (step_index, step_name, timestamp, int(run_row["id"])),
+            )
+
+        if event_type == "step_failed":
+            conn.execute(
+                """
+                UPDATE execution_runs
+                SET status = ?,
+                    failed_step_name = ?,
+                    error_message = ?,
+                    current_step_index = ?,
+                    current_step_name = ?,
+                    ended_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    "failed",
+                    step_name,
+                    message,
+                    step_index,
+                    step_name,
+                    timestamp,
+                    timestamp,
+                    int(run_row["id"]),
+                ),
+            )
+
+        if event_type == "coordinator_completed":
+            conn.execute(
+                """
+                UPDATE execution_runs
+                SET status = ?,
+                    ended_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                ("completed", timestamp, timestamp, int(run_row["id"])),
+            )
+
+        if event_type == "coordinator_failed":
+            conn.execute(
+                """
+                UPDATE execution_runs
+                SET status = ?,
+                    error_message = COALESCE(?, error_message),
+                    ended_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                ("failed", message, timestamp, timestamp, int(run_row["id"])),
+            )
+
+        conn.commit()
+
+
+def cancel_execution_run(session_id: str, *, owner_uid: str, reason: str) -> None:
+    init_upload_tables()
+    timestamp = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE execution_runs
+            SET status = CASE WHEN status = 'running' THEN 'cancelled' ELSE status END,
+                error_message = CASE WHEN status = 'running' THEN ? ELSE error_message END,
+                ended_at = CASE WHEN status = 'running' THEN ? ELSE ended_at END,
+                updated_at = ?
+            WHERE session_id = ? AND owner_uid = ?
+            """,
+            (reason, timestamp, timestamp, session_id, owner_uid),
+        )
+        conn.commit()
+
+
+def list_execution_stage_events(
+    session_id: str,
+    *,
+    owner_uid: str,
+    limit: int = 250,
+) -> list[dict[str, Any]]:
+    init_upload_tables()
+    safe_limit = max(1, min(limit, 1000))
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT e.id, e.session_id, e.dataset_id, e.step_index, e.step_name, e.agent_name,
+                   e.event_type, e.status, e.message, e.artifacts_json, e.result_summary_json,
+                   e.stdout, e.stderr, e.timestamp, e.created_at
+            FROM execution_stage_events e
+            JOIN execution_runs r ON r.id = e.execution_run_id
+            WHERE e.session_id = ? AND r.owner_uid = ?
+            ORDER BY e.id ASC
+            LIMIT ?
+            """,
+            (session_id, owner_uid, safe_limit),
+        ).fetchall()
+
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        artifacts = json.loads(row["artifacts_json"]) if row["artifacts_json"] else None
+        result_summary = json.loads(row["result_summary_json"]) if row["result_summary_json"] else None
+        items.append(
+            {
+                "id": row["id"],
+                "session_id": row["session_id"],
+                "dataset_id": row["dataset_id"],
+                "step_index": row["step_index"],
+                "step": row["step_name"],
+                "agent": row["agent_name"],
+                "type": row["event_type"],
+                "status": row["status"],
+                "message": row["message"],
+                "artifacts": artifacts,
+                "result_summary": result_summary,
+                "stdout": row["stdout"],
+                "stderr": row["stderr"],
+                "timestamp": row["timestamp"],
+                "created_at": row["created_at"],
+            }
+        )
+    return items

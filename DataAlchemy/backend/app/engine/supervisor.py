@@ -10,7 +10,15 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app.db.models import get_upload_record_by_file_id, get_upload_schema_by_file_id
+from app.db.models import (
+    cancel_execution_run,
+    create_execution_run,
+    get_execution_run_by_session_id,
+    get_upload_record_by_file_id,
+    get_upload_schema_by_file_id,
+    list_execution_stage_events,
+    user_can_access_execution_run,
+)
 from app.core.settings import UPLOAD_DIR
 from app.engine.agent_events import clear_agent_event_history, publish_agent_event
 from app.engine.coordinator import Coordinator
@@ -119,9 +127,9 @@ def _build_full_system_prompt(base_prompt: str, schema_text: str) -> str:
 
 def user_can_access_session(session_id: str, user_uid: str) -> bool:
     session = _sessions.get(session_id)
-    if session is None:
-        return False
-    return session.get("user_uid") == user_uid
+    if session is not None:
+        return session.get("user_uid") == user_uid
+    return user_can_access_execution_run(session_id, owner_uid=user_uid)
 
 
 async def reset_user_runtime(user_uid: str) -> None:
@@ -140,6 +148,11 @@ async def reset_user_runtime(user_uid: str) -> None:
                 pass
 
     for session_id in owned_session_ids:
+        cancel_execution_run(
+            session_id,
+            owner_uid=user_uid,
+            reason="Coordinator run was interrupted by user reset.",
+        )
         _sessions.pop(session_id, None)
         clear_agent_event_history(session_id)
         clear_interrupt(session_id)
@@ -292,6 +305,13 @@ async def _process_result(
 
     if result["tool"] == "finalize_plan":
         plan = _build_plan_response(dataset_id, user_uid, result["input"])
+        create_execution_run(
+            owner_uid=user_uid,
+            dataset_id=dataset_id,
+            session_id=session_id,
+            plan=plan.model_dump(),
+            total_steps=len(plan.plan),
+        )
         task = asyncio.create_task(_run_plan_execution(session_id=session_id, dataset_id=dataset_id, plan=plan))
         _execution_tasks[session_id] = task
         return SupervisorResponse(
@@ -544,3 +564,31 @@ def _infer_target_from_file_header(dataset_id: str) -> str | None:
             return max(week_columns)[1]
 
     return None
+
+
+def get_session_execution_status(*, session_id: str, user_uid: str) -> dict[str, Any] | None:
+    run = get_execution_run_by_session_id(session_id, owner_uid=user_uid)
+    if run is None:
+        return None
+
+    return {
+        "session_id": run["session_id"],
+        "dataset_id": run["dataset_id"],
+        "status": run["status"],
+        "current_step_index": run["current_step_index"],
+        "current_step_name": run["current_step_name"],
+        "progress": {
+            "completed": run["completed_step_count"],
+            "total": run["total_steps"],
+        },
+        "failed_step": run["failed_step_name"],
+        "error_message": run["error_message"],
+        "started_at": run["started_at"],
+        "ended_at": run["ended_at"],
+        "updated_at": run["updated_at"],
+        "plan": run["plan"],
+    }
+
+
+def get_session_execution_events(*, session_id: str, user_uid: str, limit: int = 250) -> list[dict[str, Any]]:
+    return list_execution_stage_events(session_id, owner_uid=user_uid, limit=limit)

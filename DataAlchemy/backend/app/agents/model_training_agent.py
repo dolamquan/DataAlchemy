@@ -683,6 +683,7 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
         "task_type": task_type,
         "target_column": target_column,
         "target_inferred": target_inferred,
+        "target_column_source": "inferred" if target_inferred else "configured",
         "n_samples": n_samples,
         "n_features": n_features,
         "metric": metric,
@@ -720,7 +721,8 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
                 "step": step,
                 "status": "completed",
                 "message": (
-                    f"Trained {best_model_name} — {metric}={best_score:.4f} "
+                    f"Trained {best_model_name} with y='{target_column}' "
+                    f"({result_data['target_column_source']}) — {metric}={best_score:.4f} "
                     f"on {n_samples} rows "
                     f"({len(candidates_evaluated)} candidate(s) in {training_time}s)"
                 ),

@@ -182,6 +182,8 @@ export interface SavedReportRecord {
 export interface AgentRuntimeEvent {
   session_id: string;
   timestamp: string;
+  id?: number;
+  step_index?: number;
   type:
     | "coordinator_started"
     | "repair_started"
@@ -204,6 +206,30 @@ export interface AgentRuntimeEvent {
   dashboard_updates?: CoordinatorDashboardUpdate[];
   completed_steps?: string[];
   progress_percent?: number;
+}
+
+export interface SupervisorExecutionStatus {
+  session_id: string;
+  dataset_id: string;
+  status: "running" | "completed" | "failed" | "cancelled" | "timeout";
+  current_step_index: number | null;
+  current_step_name: string | null;
+  progress: {
+    completed: number;
+    total: number;
+  };
+  failed_step: string | null;
+  error_message: string | null;
+  started_at: string;
+  ended_at: string | null;
+  updated_at: string;
+  plan: ProjectPlanResponse;
+}
+
+export interface SupervisorExecutionEventsResponse {
+  session_id: string;
+  count: number;
+  events: AgentRuntimeEvent[];
 }
 
 export interface AdminUserOverview {
@@ -376,6 +402,21 @@ export async function resetSupervisorRuntime(): Promise<{ success: boolean }> {
     body: JSON.stringify({}),
   });
   return parseJsonOrThrow<{ success: boolean }>(response, "Reset supervisor runtime");
+}
+
+export async function fetchSupervisorExecutionStatus(sessionId: string): Promise<SupervisorExecutionStatus> {
+  const response = await apiFetch(`${API_BASE_URL}/api/supervisor/${encodeURIComponent(sessionId)}/status`);
+  return parseJsonOrThrow<SupervisorExecutionStatus>(response, "Fetch supervisor execution status");
+}
+
+export async function fetchSupervisorExecutionEvents(
+  sessionId: string,
+  limit = 500,
+): Promise<SupervisorExecutionEventsResponse> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/api/supervisor/${encodeURIComponent(sessionId)}/events?limit=${Math.max(1, Math.min(limit, 1000))}`,
+  );
+  return parseJsonOrThrow<SupervisorExecutionEventsResponse>(response, "Fetch supervisor execution events");
 }
 
 export async function fetchSavedReport(datasetId: string): Promise<SavedReportRecord | null> {

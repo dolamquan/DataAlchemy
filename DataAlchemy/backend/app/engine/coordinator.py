@@ -41,11 +41,12 @@ class Coordinator:
                 "agent": "coordinator",
                 "status": "in_progress",
                 "message": f"Coordinator accepted {len(plan.plan)} planned step(s).",
+                "total_steps": len(plan.plan),
                 "plan": plan.model_dump(),
             },
         )
 
-        for step in plan.plan:
+        for step_index, step in enumerate(plan.plan):
             step_name = step.step
             payload = self._build_step_payload(
                 dataset_id=dataset_id,
@@ -54,11 +55,16 @@ class Coordinator:
                 session_id=session_id,
             )
             repair_attempts = 0
+            step_context = {
+                "step_index": step_index,
+                "total_steps": len(plan.plan),
+            }
 
             while True:
                 await publish_agent_event(
                     session_id,
                     {
+                        **step_context,
                         "type": "step_retried" if repair_attempts else "step_started",
                         "step": step_name,
                         "agent": step.agent,
@@ -96,6 +102,7 @@ class Coordinator:
                     await publish_agent_event(
                         session_id,
                         {
+                            **step_context,
                             "type": "step_failed",
                             "step": step_name,
                             "agent": step.agent,
@@ -108,6 +115,7 @@ class Coordinator:
                     await publish_agent_event(
                         session_id,
                         {
+                            **step_context,
                             "type": "coordinator_failed",
                             "agent": "coordinator",
                             "status": "failed",
@@ -131,6 +139,7 @@ class Coordinator:
                     await publish_agent_event(
                         session_id,
                         {
+                            **step_context,
                             "type": "step_failed",
                             "step": step_name,
                             "agent": step.agent,
@@ -143,6 +152,7 @@ class Coordinator:
                     await publish_agent_event(
                         session_id,
                         {
+                            **step_context,
                             "type": "coordinator_failed",
                             "agent": "coordinator",
                             "status": "failed",
@@ -171,6 +181,7 @@ class Coordinator:
                 await publish_agent_event(
                     session_id,
                     {
+                        **step_context,
                         "type": "repair_started",
                         "step": step_name,
                         "agent": step.agent,
@@ -199,6 +210,7 @@ class Coordinator:
                     await publish_agent_event(
                         session_id,
                         {
+                            **step_context,
                             "type": "repair_failed",
                             "step": step_name,
                             "agent": step.agent,
@@ -212,6 +224,7 @@ class Coordinator:
                     await publish_agent_event(
                         session_id,
                         {
+                            **step_context,
                             "type": "coordinator_failed",
                             "agent": "coordinator",
                             "status": "failed",
@@ -250,6 +263,7 @@ class Coordinator:
                     await publish_agent_event(
                         session_id,
                         {
+                            **step_context,
                             "type": "repair_failed",
                             "step": step_name,
                             "agent": step.agent,
@@ -281,6 +295,7 @@ class Coordinator:
                 await publish_agent_event(
                     session_id,
                     {
+                        **step_context,
                         "type": "repair_succeeded",
                         "step": step_name,
                         "agent": step.agent,
@@ -308,6 +323,7 @@ class Coordinator:
             await publish_agent_event(
                 session_id,
                 {
+                    **step_context,
                     "type": "step_completed",
                     "step": step_name,
                     "agent": step.agent,
