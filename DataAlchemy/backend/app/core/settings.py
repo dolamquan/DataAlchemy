@@ -23,6 +23,13 @@ def _env_value(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 OPENAI_API_KEY: str = _env_value("OPENAI_API_KEY")
 OPENAI_MODEL: str = _env_value("OPENAI_MODEL", "gpt-4o") or "gpt-4o"
 
@@ -35,3 +42,6 @@ ADMIN_EMAILS: tuple[str, ...] = tuple(
 ADMIN_UIDS: tuple[str, ...] = tuple(
     value.strip() for value in _env_value("ADMIN_UIDS").split(",") if value.strip()
 )
+LOG_FIREBASE_BEARER_TOKEN: bool = _env_flag("LOG_FIREBASE_BEARER_TOKEN", False)
+
+print("LOG_FIREBASE_BEARER_TOKEN =", LOG_FIREBASE_BEARER_TOKEN, flush=True)

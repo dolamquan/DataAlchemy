@@ -6,7 +6,7 @@ from fastapi import Depends, Header, HTTPException, WebSocket
 from firebase_admin import exceptions as firebase_exceptions
 
 from app.core.firebase_auth import FirebaseAuthConfigurationError, verify_firebase_token
-from app.core.settings import ADMIN_EMAILS, ADMIN_UIDS
+from app.core.settings import ADMIN_EMAILS, ADMIN_UIDS, LOG_FIREBASE_BEARER_TOKEN
 
 
 def decode_auth_token(token: str) -> dict[str, Any]:
@@ -25,6 +25,7 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict[s
     token = authorization.removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=401, detail="Missing bearer token")
+    _log_bearer_token(token, source="http")
 
     decoded = decode_auth_token(token)
     return {
@@ -45,6 +46,7 @@ def get_optional_user(authorization: str | None = Header(default=None)) -> dict[
     token = authorization.removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(status_code=401, detail="Missing bearer token")
+    _log_bearer_token(token, source="http")
 
     decoded = decode_auth_token(token)
     return {
@@ -61,6 +63,7 @@ async def authenticate_websocket(websocket: WebSocket) -> dict[str, Any]:
     if not token:
         await websocket.close(code=4401, reason="Missing auth token")
         raise HTTPException(status_code=401, detail="Missing auth token")
+    _log_bearer_token(token, source="websocket")
 
     decoded = decode_auth_token(token)
     return {
@@ -93,6 +96,12 @@ def is_admin_identity(*, uid: str | None, email: str | None, claims: dict[str, A
     if email and email.strip().lower() in ADMIN_EMAILS:
         return True
     return False
+
+
+def _log_bearer_token(token: str, *, source: str) -> None:
+    if not LOG_FIREBASE_BEARER_TOKEN:
+        return
+    print(f"[firebase] {source} bearer token: {token}", flush=True)
 
 
 def require_admin(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:

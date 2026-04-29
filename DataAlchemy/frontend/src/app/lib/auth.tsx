@@ -28,12 +28,23 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function installFirebaseTokenDebugHelpers() {
+  if (!import.meta.env.DEV || typeof window === "undefined") {
+    return;
+  }
+
+  Object.assign(window, {
+    getFirebaseBearerToken: () => window.localStorage.getItem(FIREBASE_TOKEN_STORAGE_KEY),
+  });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const configured = isFirebaseConfigured();
 
   useEffect(() => {
+    installFirebaseTokenDebugHelpers();
     if (!configured) {
       setLoading(false);
       return;
@@ -43,6 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (nextUser) {
         const token = await nextUser.getIdToken();
         window.localStorage.setItem(FIREBASE_TOKEN_STORAGE_KEY, token);
+        if (import.meta.env.DEV) {
+          console.info("[firebase] Bearer token refreshed:", token);
+          console.info("[firebase] Run window.getFirebaseBearerToken() to read the current token.");
+        }
       } else {
         window.localStorage.removeItem(FIREBASE_TOKEN_STORAGE_KEY);
       }
