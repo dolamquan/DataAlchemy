@@ -11,6 +11,23 @@ export interface RecentUploadItem {
   storage_source?: "db" | "disk" | "missing";
 }
 
+export interface ArtifactListItem {
+  file_id: string;
+  label: string;
+  type?: string | null;
+  dataset_id?: string | null;
+  dataset_name?: string | null;
+  session_id?: string | null;
+  agent?: string | null;
+  step?: string | null;
+  source?: "execution" | "report" | "derived" | string;
+  created_at?: string | null;
+  exists: boolean;
+  downloadable: boolean;
+  file_size_bytes?: number | null;
+  extension?: string | null;
+}
+
 export interface NumericStats {
   min: number;
   max: number;
@@ -99,6 +116,14 @@ export interface ProjectPlanStep {
   config?: Record<string, unknown> | null;
 }
 
+export interface PlanExecutionEstimate {
+  total_seconds_low: number;
+  total_seconds_high: number;
+  training_seconds_low?: number | null;
+  training_seconds_high?: number | null;
+  summary: string;
+}
+
 export interface ProjectPlanResponse {
   dataset_id: string;
   user_goal:
@@ -111,6 +136,7 @@ export interface ProjectPlanResponse {
     | "preprocess_and_train";
   summary: string;
   plan: ProjectPlanStep[];
+  execution_estimate?: PlanExecutionEstimate | null;
 }
 
 export interface SupervisorResponse {
@@ -202,6 +228,7 @@ export interface AgentRuntimeEvent {
   message?: string;
   plan?: ProjectPlanResponse;
   result?: unknown;
+  result_summary?: unknown;
   artifacts?: Array<Record<string, unknown>>;
   dashboard_updates?: CoordinatorDashboardUpdate[];
   completed_steps?: string[];
@@ -224,6 +251,7 @@ export interface SupervisorExecutionStatus {
   ended_at: string | null;
   updated_at: string;
   plan: ProjectPlanResponse;
+  execution?: CoordinatorExecution | null;
 }
 
 export interface SupervisorExecutionEventsResponse {
@@ -318,6 +346,12 @@ async function apiJsonFetch(input: string, init: RequestInit = {}) {
 export async function fetchRecentUploads(limit = 50): Promise<RecentUploadItem[]> {
   const response = await apiFetch(`${API_BASE_URL}/api/uploads/recent?limit=${limit}`);
   const payload = await parseJsonOrThrow<{ items?: RecentUploadItem[] }>(response, "Fetch uploads");
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
+export async function fetchArtifacts(): Promise<ArtifactListItem[]> {
+  const response = await apiFetch(`${API_BASE_URL}/api/artifacts`);
+  const payload = await parseJsonOrThrow<{ items?: ArtifactListItem[] }>(response, "Fetch artifacts");
   return Array.isArray(payload.items) ? payload.items : [];
 }
 

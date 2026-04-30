@@ -54,10 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (nextUser) {
         const token = await nextUser.getIdToken();
         window.localStorage.setItem(FIREBASE_TOKEN_STORAGE_KEY, token);
-        if (import.meta.env.DEV) {
-          console.info("[firebase] Bearer token refreshed:", token);
-          console.info("[firebase] Run window.getFirebaseBearerToken() to read the current token.");
-        }
       } else {
         window.localStorage.removeItem(FIREBASE_TOKEN_STORAGE_KEY);
       }

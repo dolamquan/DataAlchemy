@@ -6,6 +6,7 @@ import asyncio
 import json
 import re
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -24,7 +25,7 @@ from app.engine.agent_events import clear_agent_event_history, publish_agent_eve
 from app.engine.coordinator import Coordinator
 from app.engine.llm_client import call_supervisor_llm
 from app.engine.registry import get_agent_config
-from app.engine.schemas import PlanStep, ProjectPlanResponse, SupervisorResponse
+from app.engine.schemas import PlanExecutionEstimate, PlanStep, ProjectPlanResponse, SupervisorResponse
 from app.services.runtime_interrupt import clear_interrupt, request_interrupt
 
 _WEEK_COLUMN_RE = re.compile(r"^week_(\d+)$", re.IGNORECASE)
@@ -122,6 +123,34 @@ def _build_full_system_prompt(base_prompt: str, schema_text: str) -> str:
     return base_prompt.rstrip() + "\n\n## Dataset Schema Profile:\n" + schema_text
 
 
+def _supervisor_base_prompt(agent_config: dict[str, Any]) -> str:
+    base_prompt = agent_config.get("instruction") or agent_config.get("system_prompt")
+    if not isinstance(base_prompt, str) or not base_prompt.strip():
+        raise KeyError("Supervisor agent config is missing 'instruction' or 'system_prompt'.")
+    return base_prompt
+
+
+def _supervisor_model(agent_config: dict[str, Any]) -> str:
+    model = agent_config.get("model", "gpt-5.1")
+    if not isinstance(model, str) or not model.strip():
+        return "gpt-5.1"
+    return model
+
+
+def _supervisor_max_tokens(agent_config: dict[str, Any]) -> int:
+    max_tokens = agent_config.get("max_tokens", 4096)
+    if isinstance(max_tokens, int) and max_tokens > 0:
+        return max_tokens
+    return 4096
+
+
+def _supervisor_temperature(agent_config: dict[str, Any]) -> float:
+    temperature = agent_config.get("temperature", 0.2)
+    if isinstance(temperature, (int, float)):
+        return float(temperature)
+    return 0.2
+
+
 # ========== Core Logic ==========
 
 
@@ -175,7 +204,7 @@ async def start_session(*, dataset_id: str, user_message: str, user_uid: str) ->
         raise HTTPException(status_code=404, detail="Schema profile not found for dataset")
 
     # Build full system prompt: base from agents.yaml + schema context
-    base_prompt = agent_config["system_prompt"]
+    base_prompt = _supervisor_base_prompt(agent_config)
     schema_text = format_schema_for_llm(schema_profile)
     full_system = _build_full_system_prompt(base_prompt, schema_text)
 
@@ -185,9 +214,9 @@ async def start_session(*, dataset_id: str, user_message: str, user_uid: str) ->
     result = call_supervisor_llm(
         system_prompt=full_system,
         messages=messages,
-        model=agent_config["model"],
-        max_tokens=agent_config["max_tokens"],
-        temperature=agent_config.get("temperature", 0.2),
+        model=_supervisor_model(agent_config),
+        max_tokens=_supervisor_max_tokens(agent_config),
+        temperature=_supervisor_temperature(agent_config),
     )
 
     # Append assistant tool_call to history
@@ -203,18 +232,22 @@ async def start_session(*, dataset_id: str, user_message: str, user_uid: str) ->
         }],
     })
 
-    response = await _process_result(session_id, dataset_id, user_uid, result)
-
     _sessions[session_id] = {
         "user_uid": user_uid,
         "dataset_id": dataset_id,
         "system_prompt": full_system,
         "messages": messages,
-        "plan": response.plan,
-        "execution": response.execution,
-        "finished": response.type == "final",
+        "plan": None,
+        "execution": None,
+        "finished": False,
         "agent_config": agent_config,
     }
+
+    response = await _process_result(session_id, dataset_id, user_uid, result)
+
+    _sessions[session_id]["plan"] = response.plan
+    _sessions[session_id]["execution"] = response.execution
+    _sessions[session_id]["finished"] = response.type == "final"
 
     return response
 
@@ -256,9 +289,9 @@ async def send_message(
     result = call_supervisor_llm(
         system_prompt=session["system_prompt"],
         messages=session["messages"],
-        model=agent_config["model"],
-        max_tokens=agent_config["max_tokens"],
-        temperature=agent_config.get("temperature", 0.2),
+        model=_supervisor_model(agent_config),
+        max_tokens=_supervisor_max_tokens(agent_config),
+        temperature=_supervisor_temperature(agent_config),
     )
 
     # Append assistant tool_call to history
@@ -314,10 +347,15 @@ async def _process_result(
         )
         task = asyncio.create_task(_run_plan_execution(session_id=session_id, dataset_id=dataset_id, plan=plan))
         _execution_tasks[session_id] = task
+        estimate_summary = plan.execution_estimate.summary if plan.execution_estimate else None
         return SupervisorResponse(
             session_id=session_id,
             type="final",
-            message="Plan confirmed. Opening the live agent runtime.",
+            message=(
+                f"Plan confirmed. Live execution is starting now. {estimate_summary}"
+                if estimate_summary
+                else "Plan confirmed. Live execution is starting now."
+            ),
             plan=plan,
             execution=None,
         )
@@ -347,12 +385,165 @@ def _build_plan_response(
         for s in tool_input["steps"]
     ]
 
-    return ProjectPlanResponse(
+    plan = ProjectPlanResponse(
         dataset_id=dataset_id,
         user_goal=tool_input["user_goal"],
         summary=tool_input["summary"],
         plan=steps,
+        execution_estimate=_estimate_plan_execution(
+            dataset_id=dataset_id,
+            user_uid=user_uid,
+            user_goal=tool_input["user_goal"],
+            steps=steps,
+        ),
     )
+    return plan
+
+
+def _estimate_plan_execution(
+    *,
+    dataset_id: str,
+    user_uid: str,
+    user_goal: str,
+    steps: list[PlanStep],
+) -> PlanExecutionEstimate | None:
+    if not steps:
+        return None
+
+    schema_profile = get_upload_schema_by_file_id(dataset_id, owner_uid=user_uid) or {}
+    columns = schema_profile.get("columns", [])
+    n_features = max(len(columns) - 1, 1)
+    n_rows = _estimate_dataset_rows(dataset_id, user_uid, schema_profile)
+
+    preprocess_seconds = 0
+    training_seconds_low: int | None = None
+    training_seconds_high: int | None = None
+    evaluation_seconds = 0
+    report_seconds = 0
+
+    if any(step.agent == "data_preprocessing_agent" for step in steps):
+        preprocess_seconds = max(5, min(45, int(n_rows / 250)))
+
+    if any(step.agent == "model_training_agent" for step in steps):
+        training_seconds_low, training_seconds_high = _estimate_training_runtime_range(
+            user_goal=user_goal,
+            n_rows=n_rows,
+            n_features=n_features,
+        )
+
+    if any(step.agent == "evaluation_agent" for step in steps):
+        evaluation_seconds = max(5, min(30, int(n_rows / 500)))
+
+    if any(step.agent == "report_agent" for step in steps):
+        report_seconds = 10
+
+    total_low = preprocess_seconds + (training_seconds_low or 0) + evaluation_seconds + report_seconds
+    total_high = preprocess_seconds + (training_seconds_high or 0) + evaluation_seconds + report_seconds
+
+    if total_low <= 0 and total_high <= 0:
+        total_low = 5
+        total_high = 15
+
+    summary_parts = [f"Expected runtime: {_format_runtime_range(total_low, total_high)}."]
+    if training_seconds_low is not None and training_seconds_high is not None:
+        summary_parts.append(
+            f"Model training should take about {_format_runtime_range(training_seconds_low, training_seconds_high)}."
+        )
+    summary_parts.append(
+        f"Estimate based on roughly {n_rows:,} row(s), {n_features} feature column(s), and the planned agents."
+    )
+
+    return PlanExecutionEstimate(
+        total_seconds_low=total_low,
+        total_seconds_high=total_high,
+        training_seconds_low=training_seconds_low,
+        training_seconds_high=training_seconds_high,
+        summary=" ".join(summary_parts),
+    )
+
+
+def _estimate_dataset_rows(
+    dataset_id: str,
+    user_uid: str,
+    schema_profile: dict[str, Any] | None,
+) -> int:
+    record = get_upload_record_by_file_id(dataset_id, owner_uid=user_uid)
+    stored_path = record.get("stored_path") if record else None
+    if isinstance(stored_path, str):
+        try:
+            csv_path = Path(stored_path)
+            if csv_path.exists() and csv_path.is_file():
+                line_count = 0
+                with csv_path.open("rb") as handle:
+                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                        line_count += chunk.count(b"\n")
+                if line_count > 1:
+                    return max(line_count - 1, 1)
+        except OSError:
+            pass
+
+    sampled = schema_profile.get("rows_sampled") if isinstance(schema_profile, dict) else None
+    if isinstance(sampled, int) and sampled > 0:
+        return sampled
+    return 1_000
+
+
+def _estimate_training_runtime_range(*, user_goal: str, n_rows: int, n_features: int) -> tuple[int, int]:
+    if n_rows < 20:
+        n_trials = 5
+    elif n_rows < 1_000:
+        n_trials = 50
+    elif n_rows < 10_000:
+        n_trials = 30
+    elif n_rows < 100_000:
+        n_trials = 15
+    else:
+        n_trials = 10
+
+    if n_rows < 1_000:
+        candidate_seconds = [60, 90]
+    elif n_rows < 10_000:
+        candidate_seconds = [90, 90, 120]
+    else:
+        candidate_seconds = [120, 120]
+
+    hpo_seconds = sum(candidate_seconds)
+    final_fit_low = max(10, min(45, int((n_rows * max(n_features, 1)) / 50_000)))
+    final_fit_high = max(final_fit_low + 15, min(120, final_fit_low * 3))
+
+    if user_goal == "evaluate_model":
+        final_fit_low = max(5, final_fit_low // 2)
+        final_fit_high = max(15, final_fit_high // 2)
+
+    trial_multiplier_low = 0.75 if n_trials <= 15 else 0.9
+    trial_multiplier_high = 1.0 if n_trials <= 15 else 1.2
+
+    low = int(max(45, hpo_seconds * trial_multiplier_low + final_fit_low))
+    high = int(max(low + 30, hpo_seconds * trial_multiplier_high + final_fit_high))
+    return low, high
+
+
+def _format_runtime_range(low_seconds: int, high_seconds: int) -> str:
+    if low_seconds <= 0 and high_seconds <= 0:
+        return "under a minute"
+
+    if abs(high_seconds - low_seconds) <= 15:
+        midpoint = round((low_seconds + high_seconds) / 2)
+        return _format_duration(midpoint)
+
+    return f"{_format_duration(low_seconds)} to {_format_duration(high_seconds)}"
+
+
+def _format_duration(total_seconds: int) -> str:
+    if total_seconds < 60:
+        return f"{total_seconds}s"
+
+    minutes, seconds = divmod(total_seconds, 60)
+    if seconds == 0:
+        return f"{minutes} min"
+    if minutes >= 10:
+        return f"{minutes} min"
+    return f"{minutes} min {seconds}s"
 
 
 async def _run_plan_execution(
@@ -571,6 +762,9 @@ def get_session_execution_status(*, session_id: str, user_uid: str) -> dict[str,
     if run is None:
         return None
 
+    session = _sessions.get(session_id)
+    execution = session.get("execution") if session and session.get("user_uid") == user_uid else None
+
     return {
         "session_id": run["session_id"],
         "dataset_id": run["dataset_id"],
@@ -587,6 +781,7 @@ def get_session_execution_status(*, session_id: str, user_uid: str) -> dict[str,
         "ended_at": run["ended_at"],
         "updated_at": run["updated_at"],
         "plan": run["plan"],
+        "execution": execution,
     }
 
 

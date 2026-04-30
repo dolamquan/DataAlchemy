@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from app.db.session import get_connection
+from app.services.artifact_store import artifact_blob_exists
 
 
 def init_upload_tables() -> None:
@@ -487,6 +488,191 @@ def user_can_access_artifact(file_id: str, *, owner_uid: str | None) -> bool:
     return False
 
 
+def list_user_artifacts(*, owner_uid: str) -> list[dict[str, Any]]:
+    init_upload_tables()
+    with get_connection() as conn:
+        upload_rows = conn.execute(
+            """
+            SELECT file_id, original_filename, created_at
+            FROM uploads
+            WHERE owner_uid = ?
+            """,
+            (owner_uid,),
+        ).fetchall()
+        report_rows = conn.execute(
+            """
+            SELECT dataset_id, file_id, content_json, updated_at
+            FROM reports
+            WHERE owner_uid = ?
+            ORDER BY datetime(updated_at) DESC
+            """,
+            (owner_uid,),
+        ).fetchall()
+        event_rows = conn.execute(
+            """
+            SELECT e.dataset_id, e.session_id, e.step_name, e.agent_name, e.artifacts_json, e.timestamp
+            FROM execution_stage_events e
+            JOIN execution_runs r ON r.id = e.execution_run_id
+            WHERE r.owner_uid = ? AND e.artifacts_json IS NOT NULL
+            ORDER BY datetime(e.timestamp) DESC, e.id DESC
+            """,
+            (owner_uid,),
+        ).fetchall()
+
+    owned_upload_ids = [str(row["file_id"]) for row in upload_rows]
+    upload_name_map = {str(row["file_id"]): str(row["original_filename"]) for row in upload_rows}
+    items_by_file_id: dict[str, dict[str, Any]] = {}
+
+    def upsert(item: dict[str, Any]) -> None:
+        file_id = str(item.get("file_id") or "").strip()
+        if not file_id:
+            return
+        path = (Path(__file__).resolve().parents[2] / "uploads" / file_id).resolve()
+        exists = (path.exists() and path.is_file()) or artifact_blob_exists(file_id)
+        merged = {
+            **items_by_file_id.get(file_id, {}),
+            **item,
+            "file_id": file_id,
+            "exists": exists,
+            "downloadable": exists and user_can_access_artifact(file_id, owner_uid=owner_uid),
+            "file_size_bytes": path.stat().st_size if exists else None,
+            "extension": path.suffix.lower() if exists else Path(file_id).suffix.lower(),
+        }
+        items_by_file_id[file_id] = merged
+
+    for row in event_rows:
+        try:
+            artifacts = json.loads(row["artifacts_json"] or "[]")
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(artifacts, list):
+            continue
+        for artifact in artifacts:
+            if not isinstance(artifact, dict):
+                continue
+            file_id = artifact.get("file_id")
+            if not isinstance(file_id, str):
+                continue
+            upsert(
+                {
+                    "file_id": file_id,
+                    "label": artifact.get("name") or file_id,
+                    "type": artifact.get("type"),
+                    "dataset_id": row["dataset_id"],
+                    "session_id": row["session_id"],
+                    "agent": row["agent_name"],
+                    "step": row["step_name"],
+                    "source": "execution",
+                    "created_at": row["timestamp"],
+                }
+            )
+
+    for row in report_rows:
+        dataset_id = str(row["dataset_id"])
+        content: dict[str, Any]
+        try:
+            content = json.loads(row["content_json"] or "{}")
+        except json.JSONDecodeError:
+            content = {}
+
+        report_file_id = row["file_id"]
+        if isinstance(report_file_id, str):
+            upsert(
+                {
+                    "file_id": report_file_id,
+                    "label": content.get("title") or "Saved report JSON",
+                    "type": "json",
+                    "dataset_id": dataset_id,
+                    "source": "report",
+                    "created_at": row["updated_at"],
+                }
+            )
+
+        for key, label, artifact_type in (
+            ("latex_source_file_id", "Report LaTeX source", "tex"),
+            ("compiled_pdf_file_id", "Compiled report PDF", "pdf"),
+        ):
+            file_id = content.get(key)
+            if isinstance(file_id, str) and file_id:
+                upsert(
+                    {
+                        "file_id": file_id,
+                        "label": label,
+                        "type": artifact_type,
+                        "dataset_id": dataset_id,
+                        "source": "report",
+                        "created_at": row["updated_at"],
+                    }
+                )
+
+        artifacts = content.get("artifacts")
+        if isinstance(artifacts, list):
+            for artifact in artifacts:
+                if not isinstance(artifact, dict):
+                    continue
+                file_id = artifact.get("file_id")
+                if isinstance(file_id, str) and file_id:
+                    upsert(
+                        {
+                            "file_id": file_id,
+                            "label": artifact.get("name") or file_id,
+                            "type": artifact.get("type"),
+                            "dataset_id": dataset_id,
+                            "source": "report",
+                            "created_at": row["updated_at"],
+                        }
+                    )
+
+    derived_prefixes = (
+        "preprocessed_",
+        "model_",
+        "preprocessing_log_",
+        "training_report_",
+        "evaluation_report_",
+        "quality_report_",
+        "report_",
+    )
+    upload_dir = Path(__file__).resolve().parents[2] / "uploads"
+    if upload_dir.exists():
+        for path in upload_dir.iterdir():
+            if not path.is_file():
+                continue
+            file_id = path.name
+            if file_id in items_by_file_id:
+                continue
+            if not file_id.startswith(derived_prefixes):
+                continue
+            if not user_can_access_artifact(file_id, owner_uid=owner_uid):
+                continue
+
+            dataset_id = None
+            stem = Path(file_id).stem
+            for upload_id in owned_upload_ids:
+                upload_stem = Path(upload_id).stem
+                if stem == upload_stem or stem.endswith(upload_stem):
+                    dataset_id = upload_id
+                    break
+
+            upsert(
+                {
+                    "file_id": file_id,
+                    "label": file_id,
+                    "type": path.suffix.lstrip(".").lower() or None,
+                    "dataset_id": dataset_id,
+                    "source": "derived",
+                    "created_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
+                }
+            )
+
+    items = list(items_by_file_id.values())
+    for item in items:
+        dataset_id = item.get("dataset_id")
+        if isinstance(dataset_id, str):
+            item["dataset_name"] = upload_name_map.get(dataset_id)
+    items.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    return items
+
+
 def log_user_activity(
     *,
     owner_uid: str | None,
@@ -786,6 +972,12 @@ def append_execution_stage_event(session_id: str, event: dict[str, Any]) -> None
                 "keys": list(result_value.keys()),
                 "error": result_value.get("error"),
                 "message": result_value.get("message"),
+                "chosen_model": result_value.get("chosen_model"),
+                "quality_score": result_value.get("quality_score"),
+                "preprocessed_file_id": result_value.get("preprocessed_file_id"),
+                "model_file_id": result_value.get("model_file_id"),
+                "target_column": result_value.get("target_column"),
+                "task_type": result_value.get("task_type"),
             }
         else:
             result_summary = {"value_type": type(result_value).__name__} if result_value is not None else None
@@ -967,6 +1159,7 @@ def list_execution_stage_events(
                 "status": row["status"],
                 "message": row["message"],
                 "artifacts": artifacts,
+                "result": result_summary,
                 "result_summary": result_summary,
                 "stdout": row["stdout"],
                 "stderr": row["stderr"],

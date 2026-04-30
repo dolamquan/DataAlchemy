@@ -56,6 +56,7 @@ import {
   type CoordinatorExecutionResult,
   type ProjectPlanResponse,
   type ProjectPlanStep,
+  type SupervisorExecutionStatus,
 } from "../lib/uploadsApi";
 
 type AgentStatus = "active" | "idle" | "degraded" | "offline";
@@ -89,6 +90,8 @@ interface WorkflowStep {
   assignedAgent: string;
   status: StepStatus;
   output: string;
+  progressPercent?: number;
+  progressMessage?: string;
 }
 
 interface FlowStage {
@@ -184,6 +187,27 @@ function summarizeResult(result: CoordinatorExecutionResult | undefined) {
   return "Structured result returned";
 }
 
+function summarizeEventResult(result: unknown) {
+  if (!result) return null;
+  if (typeof result === "string") return result;
+  if (typeof result !== "object") return String(result);
+
+  const payload = result as Record<string, unknown>;
+  if (typeof payload.message === "string" && payload.message.trim()) return payload.message;
+  if (typeof payload.error === "string" && payload.error.trim()) return payload.error;
+  if (typeof payload.chosen_model === "string") {
+    if (typeof payload.target_column === "string") {
+      return `Trained ${payload.chosen_model} using ${payload.target_column}`;
+    }
+    return `Trained ${payload.chosen_model}`;
+  }
+  if (typeof payload.quality_score === "number") return `Quality score ${payload.quality_score.toFixed(2)}`;
+  if (typeof payload.preprocessed_file_id === "string") return `Prepared ${payload.preprocessed_file_id}`;
+  if (typeof payload.model_file_id === "string") return `Saved ${payload.model_file_id}`;
+
+  return null;
+}
+
 function artifactFromPayload(artifact: Record<string, unknown>): AgentArtifact {
   const name = artifact.name ?? artifact.file_id ?? artifact.path ?? artifact.type;
   const fileId = typeof artifact.file_id === "string" ? artifact.file_id : undefined;
@@ -205,23 +229,90 @@ function latestEventForStep(events: AgentRuntimeEvent[], stepName: string) {
   return [...events].reverse().find((event) => event.step === stepName);
 }
 
+function latestTerminalEventForStep(events: AgentRuntimeEvent[], stepName: string) {
+  return [...events].reverse().find(
+    (event) =>
+      event.step === stepName &&
+      ["step_completed", "step_failed", "repair_failed"].includes(event.type),
+  );
+}
+
+function latestProgressForStep(events: AgentRuntimeEvent[], stepName: string) {
+  const terminalEvent = latestTerminalEventForStep(events, stepName);
+  if (terminalEvent?.type === "step_completed") {
+    return undefined;
+  }
+  return [...events].reverse().find(
+    (event) => event.step === stepName && event.type === "step_progress" && typeof event.progress_percent === "number",
+  );
+}
+
+function latestTerminalEventForAgent(events: AgentRuntimeEvent[], agentId: string) {
+  return [...events].reverse().find(
+    (event) =>
+      event.agent === agentId &&
+      ["step_completed", "step_failed", "repair_failed", "coordinator_completed", "coordinator_failed"].includes(event.type),
+  );
+}
+
 function latestProgressEvent(events: AgentRuntimeEvent[], agentId: string) {
+  const terminalEvent = latestTerminalEventForAgent(events, agentId);
+  if (terminalEvent?.type === "step_completed" || terminalEvent?.type === "coordinator_completed") {
+    return undefined;
+  }
   return [...events].reverse().find(
     (event) => event.agent === agentId && event.type === "step_progress" && typeof event.progress_percent === "number",
   );
 }
 
+function applyExecutionStatusToPlan(plan: ProjectPlanResponse, status: SupervisorExecutionStatus): ProjectPlanResponse {
+  const completedCount = Math.max(0, status.progress?.completed ?? 0);
+  const currentIndex = status.current_step_index;
+
+  return {
+    ...plan,
+    plan: plan.plan.map((step, index) => {
+      let nextStatus: ProjectPlanStep["status"] = "pending";
+      if (status.failed_step === step.step) {
+        nextStatus = "blocked";
+      } else if (index < completedCount) {
+        nextStatus = "completed";
+      } else if (
+        status.status === "running" &&
+        typeof currentIndex === "number" &&
+        currentIndex === index
+      ) {
+        nextStatus = "in_progress";
+      }
+
+      return {
+        ...step,
+        status: nextStatus,
+      };
+    }),
+  };
+}
+
 function stepStatusFromEvents(events: AgentRuntimeEvent[], step: ProjectPlanStep, snapshot: AgentRuntimeSnapshot | null) {
+  const terminalEvent = latestTerminalEventForStep(events, step.step);
+  if (terminalEvent?.type === "step_failed" || terminalEvent?.type === "repair_failed") return "failed";
+  if (terminalEvent?.type === "step_completed") return "completed";
+
   const event = latestEventForStep(events, step.step);
-  if (event?.type === "step_failed") return "failed";
+  if (event?.type === "step_failed" || event?.type === "repair_failed") return "failed";
   if (event?.type === "step_completed") return "completed";
-  if (["step_started", "step_retried", "repair_started", "repair_succeeded"].includes(event?.type ?? "")) {
+  if (
+    ["step_started", "step_progress", "step_retried", "repair_started", "repair_succeeded"].includes(event?.type ?? "")
+  ) {
     return "in_progress";
   }
 
   const execution = snapshot?.execution;
   if (execution?.failed_step === step.step) return "failed";
   if (execution?.completed_steps.includes(step.step)) return "completed";
+  if (step.status === "completed") return "completed";
+  if (step.status === "in_progress") return "in_progress";
+  if (step.status === "blocked") return "failed";
   return "pending";
 }
 
@@ -230,14 +321,22 @@ function buildWorkflow(snapshot: AgentRuntimeSnapshot | null, events: AgentRunti
   const execution = snapshot?.execution;
 
   return plan.map((step) => {
-    const event = latestEventForStep(events, step.step);
+    const terminalEvent = latestTerminalEventForStep(events, step.step);
+    const event = terminalEvent ?? latestEventForStep(events, step.step);
+    const progress = latestProgressForStep(events, step.step);
     const result = execution?.results.find((item) => item.step === step.step);
+    const completedOutput =
+      event?.type === "step_completed"
+        ? summarizeEventResult(event.result) ?? summarizeEventResult(event.result_summary)
+        : null;
 
     return {
       step: step.step,
       assignedAgent: step.agent,
       status: stepStatusFromEvents(events, step, snapshot),
-      output: event?.message ?? summarizeResult(result),
+      output: completedOutput ?? event?.message ?? progress?.message ?? summarizeResult(result),
+      progressPercent: progress?.progress_percent,
+      progressMessage: progress?.message,
     };
   });
 }
@@ -350,9 +449,11 @@ function buildAgents(snapshot: AgentRuntimeSnapshot | null, events: AgentRuntime
   return registry.map((agent) => {
     const assignedSteps = planSteps.filter((step) => step.agent === agent.id);
     const agentEvents = events.filter((event) => event.agent === agent.id);
-    const latestAgentEvent = agentEvents.at(-1);
+    const latestAgentEvent = latestTerminalEventForAgent(events, agent.id) ?? agentEvents.at(-1);
     const latestProgress = latestProgressEvent(events, agent.id);
-    const activeStep = [...agentEvents].reverse().find((event) => event.type === "step_started");
+    const activeStep = latestAgentEvent?.type === "step_completed" || latestAgentEvent?.type === "coordinator_completed"
+      ? undefined
+      : [...agentEvents].reverse().find((event) => ["step_started", "step_progress"].includes(event.type));
     const failedStep = [...agentEvents].reverse().find((event) => event.type === "step_failed");
     const completedStep = [...agentEvents].reverse().find((event) => event.type === "step_completed");
     const completedSteps = assignedSteps.filter((step) => execution?.completed_steps.includes(step.step));
@@ -503,13 +604,15 @@ export function AgentsPage() {
 
         const current = loadAgentRuntimeSnapshot();
         if (current && current.sessionId === snapshot.sessionId) {
+          const hydratedPlan = applyExecutionStatusToPlan(status.plan, status);
           localStorage.setItem(
             AGENT_RUNTIME_STORAGE_KEY,
             JSON.stringify({
               ...current,
               datasetId: status.dataset_id,
               capturedAt: status.updated_at,
-              plan: status.plan,
+              plan: hydratedPlan,
+              execution: status.execution ?? current.execution ?? null,
               events: mergeEvents(current.events ?? [], response.events),
             }),
           );
@@ -825,6 +928,15 @@ export function AgentsPage() {
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">Assigned: {agentDisplayName(item.assignedAgent)}</p>
                   <p className="text-xs text-muted-foreground">Output: {item.output}</p>
+                  {typeof item.progressPercent === "number" && item.status !== "completed" && item.status !== "failed" && (
+                    <div className="mt-3 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span className="truncate">{item.progressMessage ?? "In progress"}</span>
+                        <span>{item.progressPercent}%</span>
+                      </div>
+                      <Progress value={item.progressPercent} className="h-1.5" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

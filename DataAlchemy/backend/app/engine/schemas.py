@@ -27,11 +27,20 @@ class PlanStep(BaseModel):
 	config: dict | None = None
 
 
+class PlanExecutionEstimate(BaseModel):
+	total_seconds_low: int
+	total_seconds_high: int
+	training_seconds_low: int | None = None
+	training_seconds_high: int | None = None
+	summary: str
+
+
 class ProjectPlanResponse(BaseModel):
 	dataset_id: str
 	user_goal: UserGoal
 	summary: str
 	plan: list[PlanStep]
+	execution_estimate: PlanExecutionEstimate | None = None
 
 
 class SupervisorStartRequest(BaseModel):

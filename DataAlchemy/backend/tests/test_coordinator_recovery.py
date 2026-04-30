@@ -1,4 +1,4 @@
-"""Tests for coordinator Docker Agent recovery integration."""
+"""Tests for coordinator automated repair integration."""
 
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def _repair_failure() -> AgentRecoveryResult:
         stderr="not installed",
         command=["docker", "agent", "run"],
         returncode=127,
-        error="Docker Agent exited with code 127.",
+        error="docker-agent exited with code 127.",
     )
 
 
@@ -114,7 +114,7 @@ def test_failed_repair_stops_pipeline(monkeypatch) -> None:
     assert result["status"] == "failed"
     assert result["failed_step"] == "train_model"
     assert recovery.call_count == 1
-    assert "Docker Agent exited" in result["dashboard_updates"][-1]["message"]
+    assert "docker-agent exited" in result["dashboard_updates"][-1]["message"]
 
 
 def test_repair_attempts_stop_after_max_attempts(monkeypatch) -> None:

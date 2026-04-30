@@ -6,7 +6,7 @@ import importlib
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from app.engine.registry import reload_config
+from app.engine.registry import get_agent_config, reload_config
 
 AgentHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
@@ -67,17 +67,46 @@ def register_agent_handler(agent_name: str, handler: AgentHandler) -> None:
     _AGENT_HANDLERS[agent_name] = handler
 
 
-def refresh_agent_after_recovery(agent_name: str) -> None:
-    """Refresh YAML config and re-register a patched real agent module."""
-    reload_config()
-    module_info = _REAL_AGENT_MODULES.get(agent_name)
+def _module_info_for_agent(agent_name: str) -> tuple[str, str] | None:
+    default = _REAL_AGENT_MODULES.get(agent_name)
+    try:
+        agent_config = get_agent_config(agent_name)
+    except KeyError:
+        return default
+
+    module_name = agent_config.get("runtime_module")
+    handler_name = agent_config.get("runtime_handler")
+    if isinstance(module_name, str) and module_name.strip() and isinstance(handler_name, str) and handler_name.strip():
+        return module_name, handler_name
+    return default
+
+
+def _load_agent_handler(agent_name: str, *, reload_module: bool) -> AgentHandler | None:
+    module_info = _module_info_for_agent(agent_name)
     if module_info is None:
-        return
+        return None
 
     module_name, handler_name = module_info
     module = importlib.import_module(module_name)
-    module = importlib.reload(module)
-    register_agent_handler(agent_name, getattr(module, handler_name))
+    if reload_module:
+        module = importlib.reload(module)
+    return getattr(module, handler_name)
+
+
+def _register_real_handlers(*, reload_modules: bool) -> None:
+    for agent_name in _REAL_AGENT_MODULES:
+        handler = _load_agent_handler(agent_name, reload_module=reload_modules)
+        if handler is not None:
+            register_agent_handler(agent_name, handler)
+
+
+def refresh_agent_after_recovery(agent_name: str) -> None:
+    """Refresh YAML config and re-register a patched real agent module."""
+    reload_config()
+    handler = _load_agent_handler(agent_name, reload_module=True)
+    if handler is None:
+        return
+    register_agent_handler(agent_name, handler)
 
 
 async def run_agent(agent_name: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -120,15 +149,4 @@ async def run_agent(agent_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# Register real agent handlers — imported here so registration happens at module load time.
-from app.agents.data_quality_agent import data_quality_handler  # noqa: E402
-from app.agents.data_preprocessing_agent import data_preprocessing_handler  # noqa: E402
-from app.agents.evaluation_agent import evaluation_handler  # noqa: E402
-from app.agents.model_training_agent import model_training_handler  # noqa: E402
-from app.agents.report_agent import report_handler  # noqa: E402
-
-register_agent_handler("data_quality_agent", data_quality_handler)
-register_agent_handler("data_preprocessing_agent", data_preprocessing_handler)
-register_agent_handler("model_training_agent", model_training_handler)
-register_agent_handler("evaluation_agent", evaluation_handler)
-register_agent_handler("report_agent", report_handler)
+_register_real_handlers(reload_modules=False)

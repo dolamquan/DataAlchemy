@@ -10,6 +10,7 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { ComingSoonPage } from "./pages/ComingSoonPage";
 import { AdminPage } from "./pages/AdminPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { ArtifactsPage } from "./pages/ArtifactsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 
 export const router = createBrowserRouter([
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
           { path: "schema", Component: SchemaProfilePage },
           { path: "projects", Component: ProjectsPage },
           { path: "agents", Component: AgentsPage },
+          { path: "artifacts", Component: ArtifactsPage },
           { path: "reports", Component: ReportsPage },
           {
             path: "powerbi",

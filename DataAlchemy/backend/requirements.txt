@@ -12,3 +12,4 @@ xgboost
 lightgbm
 joblib
 firebase-admin
+psycopg[binary]

@@ -19,6 +19,7 @@ CORS_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
+
 def _env_value(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
@@ -43,5 +44,8 @@ ADMIN_UIDS: tuple[str, ...] = tuple(
     value.strip() for value in _env_value("ADMIN_UIDS").split(",") if value.strip()
 )
 LOG_FIREBASE_BEARER_TOKEN: bool = _env_flag("LOG_FIREBASE_BEARER_TOKEN", False)
+LOG_AGENT_PROGRESS_TO_TERMINAL: bool = _env_flag("LOG_AGENT_PROGRESS_TO_TERMINAL", True)
+ARTIFACT_DATABASE_URL: str = _env_value("ARTIFACT_DATABASE_URL")
 
 print("LOG_FIREBASE_BEARER_TOKEN =", LOG_FIREBASE_BEARER_TOKEN, flush=True)
+print("LOG_AGENT_PROGRESS_TO_TERMINAL =", LOG_AGENT_PROGRESS_TO_TERMINAL, flush=True)

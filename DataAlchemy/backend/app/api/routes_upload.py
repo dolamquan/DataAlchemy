@@ -1,16 +1,18 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from app.api.deps import decode_auth_token, get_current_user, get_optional_user
 from app.core.settings import UPLOAD_DIR
 from app.db.models import (
     create_upload_record,
     get_upload_schema_by_file_id,
+    list_user_artifacts,
     list_recent_upload_records,
     log_user_activity,
     user_can_access_artifact,
 )
 from app.services.schema_profiler import build_schema_insights, profile_csv
+from app.services.artifact_store import get_artifact_blob
 from app.services.storage import save_upload
 
 router = APIRouter(prefix="/api", tags=["upload"])
@@ -24,6 +26,13 @@ def recent_uploads(
 ):
     return {
         "items": list_recent_upload_records(limit=limit, owner_uid=current_user["uid"], available_only=available_only)
+    }
+
+
+@router.get("/artifacts")
+def list_artifacts(current_user: dict = Depends(get_current_user)):
+    return {
+        "items": list_user_artifacts(owner_uid=current_user["uid"])
     }
 
 
@@ -72,7 +81,14 @@ def download_artifact(
     if not str(path).startswith(str(upload_dir_resolved)):
         raise HTTPException(status_code=400, detail="Invalid file_id")
     if not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="Artifact not found")
+        blob = get_artifact_blob(file_id)
+        if blob is None:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+        return Response(
+            content=blob["content"],
+            media_type=blob.get("content_type") or "application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{file_id}"'},
+        )
     return FileResponse(path, filename=file_id, media_type="application/octet-stream")
 
 

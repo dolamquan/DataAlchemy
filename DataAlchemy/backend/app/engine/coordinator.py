@@ -187,7 +187,7 @@ class Coordinator:
                         "agent": step.agent,
                         "status": "in_progress",
                         "message": (
-                            f"Starting Docker Agent repair attempt {repair_attempts}/"
+                            f"Starting automated repair attempt {repair_attempts}/"
                             f"{recovery_policy.max_attempts} for {step.agent}."
                         ),
                         "editable_files": list(recovery_policy.editable_files),
@@ -206,7 +206,7 @@ class Coordinator:
                 recovery_result = run_docker_agent_recovery(recovery_request)
 
                 if not recovery_result.success:
-                    repair_message = recovery_result.error or "Docker Agent repair failed."
+                    repair_message = recovery_result.error or "Automated repair failed."
                     await publish_agent_event(
                         session_id,
                         {
@@ -301,7 +301,7 @@ class Coordinator:
                         "agent": step.agent,
                         "status": "completed",
                         "message": (
-                            f"Docker Agent repair attempt {repair_attempts}/"
+                            f"Automated repair attempt {repair_attempts}/"
                             f"{recovery_policy.max_attempts} completed; retrying step."
                         ),
                         "stdout": recovery_result.stdout,

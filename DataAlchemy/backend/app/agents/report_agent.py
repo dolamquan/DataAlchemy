@@ -15,7 +15,7 @@ from app.db.models import (
 from app.engine.llm_client import LLMClientError, call_text_llm
 from app.engine.registry import get_agent_config
 from app.core.settings import OPENAI_MODEL
-from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.artifacts import safe_artifact_file_id, write_json_artifact, write_text_artifact
 from app.services.report_latex import compile_latex_to_pdf, latex_compiler_available, markdown_to_latex
 
 
@@ -470,8 +470,7 @@ async def report_handler(payload: dict[str, Any]) -> dict[str, Any]:
     report_file_id = safe_artifact_file_id("report", dataset_id, ".json")
     report_path = write_json_artifact(report_file_id, report)
     latex_file_id = safe_artifact_file_id("report", dataset_id, ".tex")
-    latex_path = Path(report_path).with_name(latex_file_id)
-    latex_path.write_text(str(report.get("latex_source") or ""), encoding="utf-8")
+    latex_path = write_text_artifact(latex_file_id, str(report.get("latex_source") or ""), content_type="application/x-tex")
     report["latex_source_file_id"] = latex_file_id
     latex_pdf_file_id = safe_artifact_file_id("report", dataset_id, ".pdf")
     compile_result = compile_latex_to_pdf(str(report.get("latex_source") or ""), latex_pdf_file_id)

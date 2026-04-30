@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 from app.core.settings import UPLOAD_DIR
+from app.services.artifacts import persist_file_artifact
 
 _LATEX_SPECIALS = {
     "\\": r"\textbackslash{}",
@@ -170,6 +171,7 @@ def compile_latex_to_pdf(latex_source: str, output_file_id: str) -> dict[str, st
 
         final_path = UPLOAD_DIR / output_file_id
         final_path.write_bytes(pdf_path.read_bytes())
+        persist_file_artifact(output_file_id, final_path, content_type="application/pdf")
         return {
             "success": True,
             "error": None,

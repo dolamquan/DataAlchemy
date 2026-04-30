@@ -28,7 +28,7 @@ from app.core.settings import UPLOAD_DIR
 from app.db.models import get_upload_schema_by_file_id
 from app.engine.agent_events import publish_agent_event
 from app.engine.registry import get_agent_config
-from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.artifacts import persist_file_artifact, safe_artifact_file_id, write_json_artifact
 from app.services.runtime_interrupt import UserInterruptRequested, raise_if_interrupted
 from app.services.schema_profiler import is_null_like, normalize_value, safe_open_csv
 from app.services.storage import resolve_upload_path_from_db
@@ -655,6 +655,7 @@ async def data_preprocessing_handler(payload: dict[str, Any]) -> dict[str, Any]:
         _write_csv(out_path, fieldnames, rows)
     except Exception as exc:
         return _failed(step, f"Failed to write preprocessed CSV: {exc}\n{traceback.format_exc()}")
+    persist_file_artifact(out_filename, out_path, content_type="text/csv")
 
     result_data: dict[str, Any] = {
         "rows_input": rows_input,

@@ -8,7 +8,7 @@ from app.db.models import get_report_record_by_dataset_id, log_user_activity, sa
 from app.engine.llm_client import LLMClientError, call_text_llm
 from app.engine.agent_runtime import run_agent
 from app.engine.schemas import ReportAssistRequest, ReportCompileRequest, ReportGenerateRequest, ReportSaveRequest
-from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.artifacts import safe_artifact_file_id, write_json_artifact, write_text_artifact
 from app.services.report_latex import compile_latex_to_pdf, latex_compiler_available
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -57,7 +57,7 @@ def save_report(dataset_id: str, payload: ReportSaveRequest, current_user: dict 
 	compile_error = None
 	compiled_pdf_file_id = None
 	if latex_source:
-		(UPLOAD_DIR / latex_file_id).write_text(latex_source, encoding="utf-8")
+		write_text_artifact(latex_file_id, latex_source, content_type="application/x-tex")
 		content["latex_source_file_id"] = latex_file_id
 	if latex_source:
 		pdf_file_id = safe_artifact_file_id("report", dataset_id, ".pdf")

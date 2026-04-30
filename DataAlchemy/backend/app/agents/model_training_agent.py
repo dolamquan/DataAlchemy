@@ -16,6 +16,7 @@ and its path is returned in the artifacts list.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 import traceback
@@ -41,7 +42,7 @@ from app.core.settings import UPLOAD_DIR
 from app.db.models import get_upload_schema_by_file_id
 from app.engine.agent_events import publish_agent_event
 from app.engine.registry import get_agent_config
-from app.services.artifacts import safe_artifact_file_id, write_json_artifact
+from app.services.artifacts import persist_file_artifact, safe_artifact_file_id, write_json_artifact
 from app.services.runtime_interrupt import UserInterruptRequested, is_interrupted, raise_if_interrupted
 from app.services.storage import resolve_upload_path_from_db
 
@@ -65,6 +66,30 @@ async def _publish_progress(
             "message": message,
             "progress_percent": percent,
         },
+    )
+
+
+def _publish_progress_sync(
+    session_id: str | None,
+    *,
+    step: str,
+    percent: int,
+    message: str,
+) -> None:
+    """Best-effort bridge for publishing progress from synchronous HPO code."""
+    if not session_id:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    loop.create_task(
+        _publish_progress(
+            session_id,
+            step=step,
+            percent=percent,
+            message=message,
+        )
     )
 
 # ---------------------------------------------------------------------------
@@ -301,6 +326,17 @@ def _scale_n_trials(n_samples: int) -> int:
     return 10
 
 
+def _default_hpo_timeout_seconds(model_name: str, n_samples: int, n_trials: int) -> float:
+    """Return a conservative wall-clock budget when no timeout is configured."""
+    if model_name in {"GradientBoostingClassifier", "GradientBoostingRegressor"}:
+        return 90.0 if n_samples < 10_000 else 120.0
+    if model_name in {"RandomForestClassifier", "RandomForestRegressor"}:
+        return 120.0 if n_trials >= 30 else 90.0
+    if model_name in {"LGBMClassifier", "LGBMRegressor", "XGBClassifier", "XGBRegressor"}:
+        return 120.0
+    return 60.0
+
+
 # ---------------------------------------------------------------------------
 # CV builder - Pick a cross-validation strategy based on task (Classification -> StratifiedKFold / Regression -> KFold)
 # ---------------------------------------------------------------------------
@@ -425,10 +461,13 @@ def _run_hpo(
     n_trials: int,
     cv: Any,
     random_state: int,
+    step: str,
     session_id: str | None = None,
     timeout: float | None = None,
 ) -> tuple[dict[str, Any], float]:
     """Run Optuna HPO for one candidate model; return (best_params, best_cv_score)."""
+    started_at = time.time()
+    progress_percent = 55
 
     def objective(trial: optuna.Trial) -> float:
         raise_if_interrupted(session_id, context="Training interrupted by user.")
@@ -440,12 +479,39 @@ def _run_hpo(
     pruner = optuna.pruners.MedianPruner(n_startup_trials=5)
     sampler = optuna.samplers.TPESampler(seed=random_state)
     study = optuna.create_study(direction="maximize", pruner=pruner, sampler=sampler)
+
+    def _progress_callback(study: optuna.Study, trial: optuna.Trial) -> None:
+        if is_interrupted(session_id):
+            study.stop()
+            return
+
+        completed_trials = len(study.trials)
+        try:
+            best_value = study.best_value
+        except ValueError:
+            best_value = None
+        elapsed = round(time.time() - started_at, 1)
+        best_text = (
+            f"; best={best_value:.4f}"
+            if isinstance(best_value, (int, float))
+            else ""
+        )
+        _publish_progress_sync(
+            session_id,
+            step=step,
+            percent=progress_percent,
+            message=(
+                f"{model_name} trial {completed_trials}/{n_trials} completed "
+                f"in {elapsed}s{best_text}."
+            ),
+        )
+
     study.optimize(
         objective,
         n_trials=n_trials,
         timeout=timeout,
         show_progress_bar=False,
-        callbacks=[lambda study, trial: study.stop() if is_interrupted(session_id) else None],
+        callbacks=[_progress_callback],
     )
 
     raise_if_interrupted(session_id, context="Training interrupted by user.")
@@ -607,11 +673,37 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
             message=f"Running hyperparameter search for {model_name} ({index}/{total_candidates}).",
         )
         try:
-            params, score = _run_hpo(X, y, model_name, metric, n_trials, cv, random_state, session_id, timeout)
+            candidate_timeout = timeout if timeout is not None else _default_hpo_timeout_seconds(
+                model_name,
+                n_samples,
+                n_trials,
+            )
+            await _publish_progress(
+                session_id,
+                step=step,
+                percent=min(base_percent + 2, 74),
+                message=(
+                    f"{model_name} search budget: up to {n_trials} trial(s)"
+                    f" / {int(candidate_timeout)}s."
+                ),
+            )
+            params, score = _run_hpo(
+                X,
+                y,
+                model_name,
+                metric,
+                n_trials,
+                cv,
+                random_state,
+                step,
+                session_id,
+                candidate_timeout,
+            )
             candidates_evaluated.append({
                 "model": model_name,
                 "cv_score": round(score, 6),
                 "n_trials": n_trials,
+                "timeout_seconds": candidate_timeout,
             })
             if score > best_score:
                 best_score = score
@@ -624,6 +716,7 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
                 "model": model_name,
                 "cv_score": None,
                 "n_trials": n_trials,
+                "timeout_seconds": candidate_timeout,
                 "error": str(exc),
             })
         complete_percent = 45 + round((index / total_candidates) * 30)
@@ -678,6 +771,7 @@ async def model_training_handler(payload: dict[str, Any]) -> dict[str, Any]:
         _save_model(final_model, out_path)
     except Exception as exc:
         return _failed(step, f"Failed to save model to disk: {exc}")
+    persist_file_artifact(model_file_id, out_path, content_type="application/octet-stream")
 
     result_data: dict[str, Any] = {
         "task_type": task_type,
